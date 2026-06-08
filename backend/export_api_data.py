@@ -28,7 +28,7 @@ from pathlib import Path
 from config import OUTPUT_DIR, TOPIC_INDUSTRY, COMMITTEE_MEMBERS, DATASET_LABELS
 from parse_graph import (
     load_all_datasets, build_topic_df, build_participant_df,
-    build_trip_df, build_meeting_df,
+    build_trip_df, build_meeting_df, get_topic_industry, extract_topic_from_id,
 )
 from compute_metrics import run_all
 
@@ -38,22 +38,26 @@ def ensure_output_dir():
     print(f"输出目录: {OUTPUT_DIR}")
 
 
+def clean_for_json(obj):
+    """递归清理对象中的 NaN、inf 等，使其符合 JSON 规范。"""
+    if isinstance(obj, list):
+        return [clean_for_json(i) for i in obj]
+    if isinstance(obj, dict):
+        return {k: clean_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, float):
+        if pd.isna(obj) or obj == float('inf') or obj == float('-inf'):
+            return None
+    return obj
+
+
 def df_to_json(df: pd.DataFrame, path: Path, orient: str = "records"):
     """将 DataFrame 序列化为 JSON，处理特殊类型。"""
-    data = df.to_dict(orient=orient)
-    # 处理 list、set 等不可序列化类型
-    def _clean(obj):
-        if isinstance(obj, set):
-            return list(obj)
-        if isinstance(obj, float) and pd.isna(obj):
-            return None
-        return obj
-
-    def _clean_record(record):
-        return {k: _clean(v) for k, v in record.items()}
-
-    if orient == "records":
-        data = [_clean_record(r) for r in data]
+    # 预处理：将 NaN 转换为 None
+    df_clean = df.where(pd.notnull(df), None)
+    data = df_clean.to_dict(orient=orient)
+    
+    # 处理 set 等不可直接序列化的类型
+    data = clean_for_json(data)
 
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
@@ -84,7 +88,7 @@ def export_overview(nodes_by_ds, edges_by_ds):
 
     path = OUTPUT_DIR / "overview.json"
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(records, f, ensure_ascii=False, indent=2)
+        json.dump(clean_for_json(records), f, ensure_ascii=False, indent=2)
     print(f"  -> overview.json  ({len(records)} 条)")
 
 
@@ -96,7 +100,7 @@ def export_topic_meta():
     ]
     path = OUTPUT_DIR / "topic_meta.json"
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(records, f, ensure_ascii=False, indent=2)
+        json.dump(clean_for_json(records), f, ensure_ascii=False, indent=2)
     print(f"  -> topic_meta.json  ({len(records)} 条)")
 
 
@@ -140,7 +144,7 @@ def export_trip_records(trip_df, nodes_by_ds):
 
     path = OUTPUT_DIR / "trip_records.json"
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(records, f, ensure_ascii=False, indent=2)
+        json.dump(clean_for_json(records), f, ensure_ascii=False, indent=2)
     print(f"  -> trip_records.json  ({len(records)} 条)")
 
 
@@ -149,9 +153,39 @@ def export_missing_evidence(missing_filah, missing_trout):
     for ds, mdf in [("filah", missing_filah), ("trout", missing_trout)]:
         if mdf.empty:
             continue
-        keep = [c for c in ["id", "type", "date", "label", "topic_key", "topic_industry", "topic_bias_score"]
+        keep = [c for c in ["id", "type", "date", "label", "topic_key", "topic_industry", "topic_bias_score", "related_members"]
                 if c in mdf.columns]
         df_to_json(mdf[keep], OUTPUT_DIR / f"missing_{ds}.json")
+
+
+def export_graph_data(nodes_by_ds, edges_by_ds):
+    """导出全量图数据（简化版，用于 G6 可视化）。"""
+    jo_nodes = nodes_by_ds["journalist"]
+    jo_edges = edges_by_ds["journalist"]
+    
+    # 简化节点：只保留 id, type, label
+    nodes = []
+    for _, row in jo_nodes.iterrows():
+        nodes.append({
+            "id": row["id"],
+            "type": row["type"],
+            "label": row.get("label", row["id"]),
+            "industry": get_topic_industry(extract_topic_from_id(row["id"])) if row["type"] == "topic" else "unknown"
+        })
+        
+    # 简化边：只保留 source, target, role
+    edges = []
+    for _, row in jo_edges.iterrows():
+        edges.append({
+            "source": row["source"],
+            "target": row["target"],
+            "role": row.get("role", "")
+        })
+        
+    path = OUTPUT_DIR / "full_graph.json"
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(clean_for_json({"nodes": nodes, "edges": edges}), f, ensure_ascii=False, indent=2)
+    print(f"  -> full_graph.json  ({len(nodes)} nodes, {len(edges)} edges)")
 
 
 def main():
@@ -175,6 +209,7 @@ def main():
     export_topic_meta()
     export_place_nodes(nodes_by_ds)
     export_trip_records(trip_df, nodes_by_ds)
+    export_graph_data(nodes_by_ds, edges_by_ds)
 
     df_to_json(metrics["bias_index"],          OUTPUT_DIR / "bias_index.json")
     df_to_json(metrics["sentiment_bias"],       OUTPUT_DIR / "sentiment_bias.json")
@@ -185,6 +220,7 @@ def main():
     df_to_json(metrics["trip_zone_dist"],       OUTPUT_DIR / "trip_zone_dist.json")
     df_to_json(metrics["member_activity"],      OUTPUT_DIR / "member_activity.json")
     df_to_json(metrics["meeting_coverage"],     OUTPUT_DIR / "meeting_coverage.json")
+    df_to_json(metrics["meeting_topic_dist"],   OUTPUT_DIR / "meeting_topic_dist.json")
 
     export_missing_evidence(metrics["missing_filah"], metrics["missing_trout"])
 

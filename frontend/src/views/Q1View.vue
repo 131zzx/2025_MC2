@@ -19,38 +19,31 @@
         <DatasetSummaryCards :node-types="store.nodeTypeCounts" />
       </section>
 
-      <!-- ③ 偏见仪表盘 -->
+      <!-- ③ 偏见对比与可靠性评估 -->
       <section class="section">
-        <div class="section-title">偏见指数仪表盘（正值=渔业偏向，负值=旅游偏向）</div>
-        <div class="gauge-row">
-          <div class="card gauge-card">
-            <div class="card-title">FILAH 偏见指数</div>
-            <BiasGauge
-              :value="biasOf('filah')"
-              label="FILAH"
-              color="#f59e0b"
-            />
+        <div class="section-title">数据集特征对比（雷达图）</div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">FILAH vs TROUT 多维度对比</div>
+            <RadarCompare :node-types="store.nodeTypeCounts" :topic-dist="store.topicDist" />
           </div>
-          <div class="card gauge-card">
-            <div class="card-title">TROUT 偏见指数</div>
-            <BiasGauge
-              :value="biasOf('trout')"
-              label="TROUT"
-              color="#3b82f6"
-            />
-          </div>
-          <div class="card gauge-card">
-            <div class="card-title">记者数据集（基准）</div>
-            <BiasGauge
-              :value="biasOf('journalist')"
-              label="journalist"
-              color="#10b981"
-            />
+          <div class="card">
+            <div class="card-title">偏见指数对比（正值=偏向渔业，负值=偏向旅游）</div>
+            <div class="gauge-row-compact">
+              <div class="gauge-item">
+                <BiasGauge :value="biasOf('filah')" label="FILAH" color="#f59e0b" />
+                <div class="gauge-ds-label">FILAH</div>
+              </div>
+              <div class="gauge-item">
+                <BiasGauge :value="biasOf('trout')" label="TROUT" color="#3b82f6" />
+                <div class="gauge-ds-label">TROUT</div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      <!-- ④ 话题行业分布甜甜圈 -->
+      <!-- ④ 话题行业分布 -->
       <section class="section">
         <div class="section-title">话题行业构成（渔业 vs 旅游 vs 混合 vs 中立）</div>
         <div class="donut-row">
@@ -61,10 +54,6 @@
           <div class="card donut-card">
             <div class="card-title">TROUT</div>
             <IndustryDonut :data="store.topicDist" dataset="trout" />
-          </div>
-          <div class="card donut-card">
-            <div class="card-title">记者（基准）</div>
-            <IndustryDonut :data="store.topicDist" dataset="journalist" />
           </div>
         </div>
       </section>
@@ -124,6 +113,7 @@ import DatasetSummaryCards from '../components/charts/DatasetSummaryCards.vue'
 import BiasGauge           from '../components/charts/BiasGauge.vue'
 import IndustryDonut       from '../components/charts/IndustryDonut.vue'
 import NodeTypeChart       from '../components/charts/NodeTypeChart.vue'
+import RadarCompare        from '../components/charts/RadarCompare.vue'
 
 const store = useDataStore()
 
@@ -144,8 +134,9 @@ function biasOf(ds: string): number {
 }
 
 /* 仪表盘行 */
-.gauge-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
-.gauge-card { display: flex; flex-direction: column; align-items: center; }
+.gauge-row-compact { display: flex; justify-content: space-around; align-items: center; height: 100%; }
+.gauge-item { display: flex; flex-direction: column; align-items: center; }
+.gauge-ds-label { font-size: 13px; font-weight: 700; color: #1e293b; margin-top: -10px; }
 
 /* 甜甜圈行 */
 .donut-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }

@@ -35,7 +35,10 @@ import { computed } from 'vue'
 import type { MeetingCoverageItem } from '../../types'
 
 const props = defineProps<{ data: MeetingCoverageItem[] }>()
-const exclusiveCount = computed(() => props.data.filter(d => d.exclusive_to_journalist).length)
+const exclusiveCount = computed(() => {
+  const list = props.data || []
+  return list.filter(d => d.exclusive_to_journalist).length
+})
 </script>
 
 <style scoped>

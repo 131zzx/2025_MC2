@@ -5,7 +5,7 @@ from pathlib import Path
 
 # ── 路径配置 ──────────────────────────────────────────────
 ROOT = Path(__file__).parent.parent
-DATA_DIR = ROOT / "25年案例" / "2025-data" / "MC2_release"
+DATA_DIR = ROOT / "data"
 OUTPUT_DIR = ROOT / "frontend" / "public" / "data"
 
 DATA_FILES = {

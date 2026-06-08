@@ -9,72 +9,62 @@
       <!-- 问题说明 -->
       <div class="alert alert-warning">
         <strong>问题 Q2：</strong>
-        利用三个数据集评估委员会成员个体的行为偏见——哪些成员存在偏袒渔业或旅游业的证据？
+        全量知识图谱下——委员会的时间分配如何？是否存在整体偏袒？
       </div>
 
-      <!-- ① 成员 x 数据集覆盖矩阵 -->
+      <!-- ① 整体偏见指数仪表盘 -->
       <section class="section">
-        <div class="section-title">成员数据集覆盖矩阵（谁被谁记录了？）</div>
-        <div class="card">
-          <CoverageMatrix
-            :coverage="store.coverage"
-            :member-activity="store.memberActivity"
+        <div class="section-title">全量数据集（Journalist）整体偏见指数</div>
+        <div class="card bias-dashboard">
+          <BiasGauge
+            :value="biasOf('journalist')"
+            label="Journalist"
+            color="#10b981"
           />
-        </div>
-        <div class="matrix-insight">
-          <span class="ins ins--warn">FILAH 完全缺失 Ed Helpsford、Teddy Goldstein、Tante Titan 三人记录</span>
-          <span class="ins ins--info">TROUT 虽覆盖 6 人，但 Tante Titan 仅 4 条、Carol Limpet 仅 3 条</span>
-        </div>
-      </section>
-
-      <!-- ② 单人活动量对比（交互选择） -->
-      <section class="section">
-        <div class="section-title">成员跨数据集活动量对比</div>
-        <div class="member-selector">
-          <button
-            v-for="m in members" :key="m"
-            class="radio-btn" :class="activeMember === m && 'radio-btn--active'"
-            @click="activeMember = m"
-          >{{ m }}</button>
-        </div>
-        <div class="grid-2" style="margin-top:14px">
-          <div class="card">
-            <div class="card-title">{{ activeMember }} — 三数据集活动量对比</div>
-            <MemberCompareBar :data="store.memberActivity" :member="activeMember" />
-          </div>
-          <div class="card">
-            <div class="card-title">{{ activeMember }} — 行业情感偏向（记者数据集）</div>
-            <MemberSentimentBar :data="store.sentimentAgg" :member="activeMember" />
+          <div class="bias-info">
+            <div class="bias-status" :class="biasOf('journalist') > 0 ? 'status-fish' : 'status-tour'">
+              {{ biasOf('journalist') > 0 ? '整体偏向渔业' : '整体偏向旅游' }}
+            </div>
+            <p class="bias-text">
+              基于全量数据，委员会的议题参与和情感表达显示出
+              <strong>{{ Math.abs(biasOf('journalist')).toFixed(3) }}</strong> 
+              的偏见指数。
+            </p>
           </div>
         </div>
       </section>
 
-      <!-- ③ 情感热图 -->
+      <!-- ② 会议议题时间分布 -->
       <section class="section">
-        <div class="section-title">全员情感倾向热图（成员 × 行业，深色=正向）</div>
-        <div class="ds-tabs">
-          <button
-            v-for="ds in allDatasets" :key="ds.key"
-            class="btn" :class="[`btn-${ds.key}`, activeDs === ds.key && 'btn--active']"
-            @click="activeDs = ds.key"
-          >{{ ds.label }}</button>
-        </div>
-        <div class="card" style="margin-top:12px">
-          <SentimentHeatmap :data="store.sentimentAgg" :dataset="activeDs" />
+        <div class="section-title">议题时间分配趋势（按会议）</div>
+        <div class="card">
+          <StreamGraph :data="store.meetingTopicDist" />
         </div>
       </section>
 
-      <!-- ④ 覆盖率条形图 -->
+      <!-- ③ 成员参与热力图 -->
       <section class="section">
-        <div class="section-title">各成员被 FILAH / TROUT 记录的覆盖率（相对记者数据集）</div>
+        <div class="section-title">成员 × 产业 参与热力图（全量数据）</div>
+        <div class="card">
+          <SentimentHeatmap :data="store.sentimentAgg" dataset="journalist" />
+        </div>
+      </section>
+
+      <!-- ④ 行程空间分布 -->
+      <section class="section">
+        <div class="section-title">委员会行程空间分布（按 Zone）</div>
         <div class="grid-2">
           <div class="card">
-            <div class="card-title">FILAH 覆盖率</div>
-            <CoverageBar :data="store.coverage" dataset="filah" />
+            <div class="card-title">全量行程 Zone 分布</div>
+            <TripZoneChart :data="store.tripZoneDist" />
           </div>
           <div class="card">
-            <div class="card-title">TROUT 覆盖率</div>
-            <CoverageBar :data="store.coverage" dataset="trout" />
+            <div class="card-title">行程轨迹（全量数据）</div>
+            <TripMap 
+              :places="store.placeNodes"
+              :trips="store.tripRecords" 
+              dataset="journalist" 
+            />
           </div>
         </div>
       </section>
@@ -122,23 +112,19 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useDataStore } from '../stores/dataStore'
-import CoverageMatrix    from '../components/charts/CoverageMatrix.vue'
-import MemberCompareBar  from '../components/charts/MemberCompareBar.vue'
-import MemberSentimentBar from '../components/charts/MemberSentimentBar.vue'
+import BiasGauge         from '../components/charts/BiasGauge.vue'
+import StreamGraph        from '../components/charts/StreamGraph.vue'
 import SentimentHeatmap  from '../components/charts/SentimentHeatmap.vue'
-import CoverageBar       from '../components/charts/CoverageBar.vue'
+import TripZoneChart     from '../components/charts/TripZoneChart.vue'
+import TripMap           from '../components/map/TripMap.vue'
 import { COMMITTEE_MEMBERS } from '../types'
 
 const store = useDataStore()
-const members = COMMITTEE_MEMBERS
-const activeMember = ref(members[0])
-const activeDs = ref<'filah' | 'trout' | 'journalist'>('journalist')
 
-const allDatasets = [
-  { key: 'filah',      label: 'FILAH'    },
-  { key: 'trout',      label: 'TROUT'    },
-  { key: 'journalist', label: '记者数据' },
-] as const
+/** 获取某数据集整体偏见指数 */
+function biasOf(ds: string): number {
+  return store.biasIndex.find(d => d.dataset === ds && d.member === 'ALL')?.bias_index ?? 0
+}
 </script>
 
 <style scoped>
@@ -148,19 +134,20 @@ const allDatasets = [
 .section-title {
   font-size: 12px; font-weight: 700; letter-spacing: .06em;
   text-transform: uppercase; color: #64748b; margin-bottom: 12px;
-  padding-left: 10px; border-left: 3px solid #f59e0b;
+  padding-left: 10px; border-left: 3px solid #10b981;
 }
 
-.matrix-insight { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
-.ins {
-  font-size: 11px; padding: 5px 10px; border-radius: 5px;
+.bias-dashboard {
+  display: flex; align-items: center; justify-content: space-around;
+  padding: 20px;
 }
-.ins--warn { background: rgba(245,158,11,.1); color: #fbbf24; }
-.ins--info { background: rgba(59,130,246,.1);  color: #60a5fa; }
-
-.member-selector { display: flex; flex-wrap: wrap; gap: 6px; }
-
-.ds-tabs { display: flex; gap: 6px; }
+.bias-info { flex: 1; max-width: 400px; padding-left: 40px; }
+.bias-status {
+  font-size: 18px; font-weight: 700; margin-bottom: 10px;
+}
+.status-fish { color: #f59e0b; }
+.status-tour { color: #3b82f6; }
+.bias-text { font-size: 14px; color: #64748b; line-height: 1.6; }
 
 /* 结论卡 */
 .conclusion-grid {
