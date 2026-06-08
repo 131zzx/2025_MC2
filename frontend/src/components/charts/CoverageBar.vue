@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div ref="el" class="d3-chart" />
 </template>
 
@@ -34,7 +34,7 @@ function draw() {
   // 背景轨道
   g.selectAll('.track').data(sorted.value).join('rect').attr('class', 'track')
     .attr('x', 0).attr('y', d => y(d.member)!).attr('width', iw).attr('height', y.bandwidth())
-    .attr('fill', '#1e293b').attr('rx', 4)
+    .attr('fill', '#f1f5f9').attr('rx', 4)
 
   // 覆盖率条
   g.selectAll('.bar').data(sorted.value).join('rect').attr('class', 'bar')

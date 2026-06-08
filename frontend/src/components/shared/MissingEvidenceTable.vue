@@ -62,15 +62,15 @@ function getImpact(item: MissingNode): string {
 </script>
 
 <style scoped>
-.filter-row { margin-bottom: 8px; font-size: 12px; color: var(--color-text-muted); }
-.filter-row strong { color: var(--color-text); }
+.filter-row { margin-bottom: 8px; font-size: 12px; color: #64748b; }
+.filter-row strong { color: #1e293b; }
 .table-wrap { overflow-y: auto; max-height: 220px; }
 table { width: 100%; border-collapse: collapse; font-size: 11px; }
-th { position: sticky; top: 0; background: var(--color-surface); color: var(--color-text-muted); padding: 5px 6px; text-align: left; border-bottom: 1px solid var(--color-border); font-weight: 600; }
-td { padding: 4px 6px; border-bottom: 1px solid rgba(51,65,85,0.3); color: var(--color-text-muted); }
+th { position: sticky; top: 0; background: #ffffff; color: #64748b; padding: 5px 6px; text-align: left; border-bottom: 1px solid #e2e8f0; font-weight: 600; }
+td { padding: 4px 6px; border-bottom: 1px solid #f1f5f9; color: #64748b; }
 .mono { font-family: monospace; font-size: 10px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.impact { font-size: 11px; color: var(--color-text); }
+.impact { font-size: 11px; color: #1e293b; }
 .ind-tourism td:first-child { border-left: 3px solid #16a34a; }
 .ind-fishing td:first-child { border-left: 3px solid #0369a1; }
-.empty { font-size: 13px; color: var(--color-text-muted); text-align: center; padding: 20px; }
+.empty { font-size: 13px; color: #94a3b8; text-align: center; padding: 20px; }
 </style>

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div ref="el" class="d3-chart" />
 </template>
 
@@ -6,79 +6,141 @@
 import { ref, onMounted, watch, onUnmounted } from 'vue'
 import * as d3 from 'd3'
 import type { NodeTypeCountItem } from '../../types'
-import { DATASET_LABELS } from '../../types'
+import { DATASET_LABELS, DATASET_COLORS } from '../../types'
 
 const props = defineProps<{ data: NodeTypeCountItem[] }>()
 const el = ref<HTMLElement>()
 
-const NODE_COLORS: Record<string, string> = {
-  trip: '#f59e0b', meeting: '#3b82f6', discussion: '#8b5cf6',
-  plan: '#06b6d4', topic: '#10b981', place: '#64748b',
-  'entity.person': '#ec4899', 'entity.organization': '#f97316',
+const DATASETS = ['filah', 'trout', 'journalist'] as const
+
+const NODE_LABELS: Record<string, string> = {
+  trip:                  '行程 (trip)',
+  place:                 '地点 (place)',
+  discussion:            '讨论 (discussion)',
+  plan:                  '计划 (plan)',
+  topic:                 '议题 (topic)',
+  meeting:               '会议 (meeting)',
+  'entity.organization': '组织',
+  'entity.person':       '人物',
 }
 
 function draw() {
   if (!el.value || !props.data.length) return
   el.value.innerHTML = ''
-  const W = el.value.clientWidth || 500
-  const H = 240
-  const margin = { top: 30, right: 16, bottom: 30, left: 40 }
+
+  // 收集所有出现的 node_type，按记者数据集数量降序排列
+  const types = [...new Set(props.data.map(d => d.node_type))]
+    .sort((a, b) => {
+      const va = props.data.find(d => d.node_type === a && d.dataset === 'journalist')?.count ?? 0
+      const vb = props.data.find(d => d.node_type === b && d.dataset === 'journalist')?.count ?? 0
+      return vb - va
+    })
+
+  const W = el.value.clientWidth || 560
+  const rowH = 28      // 每个 dataset 一行的高度
+  const groupGap = 14  // 每个 type 之间的间距
+  const groupH = DATASETS.length * rowH + groupGap
+  const nTypes = types.length
+  const margin = { top: 16, right: 100, bottom: 32, left: 160 }
+  const H = margin.top + nTypes * groupH + margin.bottom
   const iw = W - margin.left - margin.right
   const ih = H - margin.top - margin.bottom
 
   const svg = d3.select(el.value).append('svg').attr('width', W).attr('height', H)
-  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`)
+  const g   = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`)
 
-  const datasets   = [...new Set(props.data.map(d => d.dataset))]
-  const nodeTypes  = [...new Set(props.data.map(d => d.node_type))]
-  const stackData  = datasets.map(ds => {
-    const row: any = { ds }
-    nodeTypes.forEach(nt => {
-      row[nt] = props.data.find(d => d.dataset === ds && d.node_type === nt)?.count ?? 0
-    })
-    return row
-  })
+  // 最大值用于 X 轴
+  const maxVal = d3.max(props.data, d => d.count) ?? 1
+  const x = d3.scaleLinear().domain([0, maxVal]).range([0, iw]).nice()
 
-  const stack = d3.stack<any>().keys(nodeTypes)
-  const series = stack(stackData)
+  // 每种节点类型组的 Y 起点
+  const typeY = (i: number) => i * groupH
 
-  const x = d3.scaleBand().domain(datasets).range([0, iw]).padding(0.3)
-  const y = d3.scaleLinear()
-    .domain([0, d3.max(series, s => d3.max(s, d => d[1])) ?? 0])
-    .nice().range([ih, 0])
-
-  series.forEach(s => {
-    g.selectAll(`.bar-${s.key.replace(/\./g, '-')}`)
-      .data(s).join('rect')
-      .attr('x', d => x(d.data.ds)!)
-      .attr('y', d => y(d[1]))
-      .attr('height', d => y(d[0]) - y(d[1]))
-      .attr('width', x.bandwidth())
-      .attr('fill', NODE_COLORS[s.key] ?? '#888')
-      .attr('rx', 2)
-      .append('title').text(d => `${s.key}: ${d[1] - d[0]}`)
-  })
-
-  g.append('g').attr('transform', `translate(0,${ih})`)
-    .call(d3.axisBottom(x).tickFormat(d => DATASET_LABELS[d as keyof typeof DATASET_LABELS] ?? d).tickSize(0))
-    .call(ax => ax.select('.domain').attr('stroke', '#334155'))
-    .call(ax => ax.selectAll('text').attr('fill', '#94a3b8').attr('font-size', 12))
-
-  g.append('g')
-    .call(d3.axisLeft(y).ticks(5))
+  // 垂直网格线
+  g.append('g').attr('class', 'grid')
+    .call(d3.axisBottom(x).ticks(5).tickSize(ih).tickFormat(() => ''))
+    .attr('transform', 'translate(0,0)')
     .call(ax => ax.select('.domain').remove())
-    .call(ax => ax.selectAll('line').attr('stroke', '#1e293b'))
-    .call(ax => ax.selectAll('text').attr('fill', '#94a3b8').attr('font-size', 10))
+    .call(ax => ax.selectAll('line').attr('stroke', '#f1f5f9').attr('stroke-dasharray', '3,3'))
 
-  // 图例
-  const leg = svg.append('g').attr('transform', `translate(${margin.left}, 6)`)
-  const perRow = Math.floor(iw / 130)
-  nodeTypes.forEach((nt, i) => {
-    const col = i % perRow, row = Math.floor(i / perRow)
-    leg.append('rect').attr('x', col * 130).attr('y', row * 14)
-      .attr('width', 8).attr('height', 8).attr('fill', NODE_COLORS[nt] ?? '#888').attr('rx', 1)
-    leg.append('text').attr('x', col * 130 + 12).attr('y', row * 14 + 8)
-      .attr('fill', '#94a3b8').attr('font-size', 10).text(nt)
+  // 交替行背景
+  types.forEach((_, i) => {
+    if (i % 2 === 0) {
+      g.append('rect')
+        .attr('x', -8).attr('y', typeY(i) - 4)
+        .attr('width', iw + 8).attr('height', groupH - groupGap + 8)
+        .attr('fill', '#f8fafc').attr('rx', 4)
+    }
+  })
+
+  // 每种节点类型
+  types.forEach((type, ti) => {
+    const baseY = typeY(ti)
+
+    // 类型标签
+    g.append('text')
+      .attr('x', -12).attr('y', baseY + (DATASETS.length * rowH) / 2 + 4)
+      .attr('text-anchor', 'end')
+      .attr('font-size', 11).attr('font-weight', 600).attr('fill', '#374151')
+      .text(NODE_LABELS[type] ?? type)
+
+    // 每个数据集的条
+    DATASETS.forEach((ds, di) => {
+      const item = props.data.find(d => d.node_type === type && d.dataset === ds)
+      const val = item?.count ?? 0
+      const barY = baseY + di * rowH + 2
+      const color = DATASET_COLORS[ds]
+
+      // 轨道
+      g.append('rect')
+        .attr('x', 0).attr('y', barY)
+        .attr('width', iw).attr('height', rowH - 6)
+        .attr('fill', '#f1f5f9').attr('rx', 4)
+
+      // 条形
+      if (val > 0) {
+        g.append('rect')
+          .attr('x', 0).attr('y', barY)
+          .attr('width', x(val)).attr('height', rowH - 6)
+          .attr('fill', color).attr('rx', 4).attr('opacity', 0.85)
+          .append('title')
+          .text(`${DATASET_LABELS[ds]}: ${val} 个 ${NODE_LABELS[type] ?? type}`)
+
+        // 数值标签（值较小时放在条外）
+        const labelX = x(val) > 34 ? x(val) - 4 : x(val) + 4
+        const anchor = x(val) > 34 ? 'end' : 'start'
+        const labelColor = x(val) > 34 ? '#ffffff' : '#475569'
+        g.append('text')
+          .attr('x', labelX).attr('y', barY + (rowH - 6) / 2 + 4)
+          .attr('text-anchor', anchor).attr('font-size', 9).attr('font-weight', 700)
+          .attr('fill', labelColor).text(val)
+      } else {
+        g.append('text')
+          .attr('x', 5).attr('y', barY + (rowH - 6) / 2 + 4)
+          .attr('font-size', 9).attr('fill', '#cbd5e1').text('0')
+      }
+    })
+  })
+
+  // X 轴
+  g.append('g').attr('transform', `translate(0,${ih})`)
+    .call(d3.axisBottom(x).ticks(5))
+    .call(ax => ax.select('.domain').attr('stroke', '#e2e8f0'))
+    .call(ax => ax.selectAll('text').attr('fill', '#94a3b8').attr('font-size', 10))
+    .call(ax => ax.selectAll('line').attr('stroke', '#e2e8f0'))
+
+  // 右侧图例
+  const lx = iw + 12
+  DATASETS.forEach((ds, i) => {
+    const ly = 20 + i * 22
+    svg.append('rect')
+      .attr('x', margin.left + lx).attr('y', margin.top + ly - 8)
+      .attr('width', 12).attr('height', 12).attr('rx', 3)
+      .attr('fill', DATASET_COLORS[ds]).attr('opacity', 0.85)
+    svg.append('text')
+      .attr('x', margin.left + lx + 16).attr('y', margin.top + ly + 2)
+      .attr('font-size', 11).attr('fill', '#475569').attr('font-weight', 500)
+      .text(DATASET_LABELS[ds])
   })
 }
 
@@ -87,4 +149,7 @@ onMounted(() => { ro.observe(el.value!); draw() })
 watch(() => props.data, draw, { deep: true })
 onUnmounted(() => ro.disconnect())
 </script>
-<style scoped>.d3-chart { width: 100%; }</style>
+
+<style scoped>
+.d3-chart { width: 100%; }
+</style>

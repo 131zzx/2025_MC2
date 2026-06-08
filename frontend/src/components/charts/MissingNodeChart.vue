@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div>
     <div ref="el" class="d3-chart" />
     <div class="summary">
@@ -41,7 +41,7 @@ function draw() {
   g.selectAll('path').data(pie(pieData)).join('path')
     .attr('d', arc)
     .attr('fill', d => INDUSTRY_COLORS[d.data.ind as keyof typeof INDUSTRY_COLORS] ?? '#888')
-    .attr('stroke', '#0f172a').attr('stroke-width', 2)
+    .attr('stroke', '#ffffff').attr('stroke-width', 2)
     .append('title').text(d => `${INDUSTRY_LABELS[d.data.ind as keyof typeof INDUSTRY_LABELS] ?? d.data.ind}: ${d.data.cnt}`)
 
   g.selectAll('text').data(pie(pieData)).join('text')

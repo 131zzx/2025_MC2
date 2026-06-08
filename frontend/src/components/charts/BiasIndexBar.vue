@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div ref="el" class="d3-chart" />
 </template>
 
@@ -80,7 +80,7 @@ function draw() {
     .call(d3.axisLeft(y).ticks(5)
       .tickFormat(v => v === 0 ? '均衡' : (Number(v) > 0 ? `旅游 +${v}` : `渔业 ${v}`)))
     .call(ax => ax.select('.domain').remove())
-    .call(ax => ax.selectAll('line').attr('stroke', '#1e293b'))
+    .call(ax => ax.selectAll('line').attr('stroke', '#f1f5f9'))
     .call(ax => ax.selectAll('text').attr('fill', '#94a3b8').attr('font-size', 10))
 
   // 图例

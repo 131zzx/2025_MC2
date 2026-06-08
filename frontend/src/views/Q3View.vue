@@ -65,11 +65,11 @@ const activeMember = ref(members[0])
 <style scoped>
 .view-container { padding: 24px; max-width: 1400px; }
 .verdict-card {
-  background: rgba(59,130,246,.08); border: 1px solid #3b82f6;
+  background: #eff6ff; border: 1px solid #bfdbfe;
   border-radius: 12px; padding: 20px 24px; margin-bottom: 24px;
 }
-.verdict-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #60a5fa; margin-bottom: 6px; }
-.verdict-title { font-size: 16px; font-weight: 700; color: #e2e8f0; margin-bottom: 10px; }
-.verdict-result { color: #f59e0b; }
-.verdict-text { color: #94a3b8; font-size: 13px; line-height: 1.7; }
+.verdict-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #2563eb; margin-bottom: 6px; }
+.verdict-title { font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 10px; }
+.verdict-result { color: #d97706; }
+.verdict-text { color: #475569; font-size: 13px; line-height: 1.7; }
 </style>
