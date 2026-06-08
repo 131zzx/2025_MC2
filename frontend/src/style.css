@@ -1,0 +1,65 @@
+/* ── 全局重置与基础样式 ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #app {
+  height: 100%;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+/* ── 配色变量 ────────────────────────────────────────────── */
+:root {
+  --color-bg:          #0f172a;   /* 深空蓝背景 */
+  --color-surface:     #1e293b;   /* 卡片背景 */
+  --color-border:      #334155;   /* 边框 */
+  --color-text:        #e2e8f0;   /* 主文本 */
+  --color-text-muted:  #94a3b8;   /* 次要文本 */
+
+  --color-filah:       #f59e0b;   /* FILAH 琥珀色 */
+  --color-trout:       #3b82f6;   /* TROUT 蓝色 */
+  --color-journalist:  #10b981;   /* 全量 绿色 */
+
+  --color-fishing:     #0369a1;   /* 渔业 深蓝 */
+  --color-tourism:     #16a34a;   /* 旅游 深绿 */
+  --color-mixed:       #9333ea;   /* 混合 紫色 */
+  --color-neutral:     #6b7280;   /* 中性 灰色 */
+
+  --radius:    8px;
+  --radius-lg: 12px;
+}
+
+/* ── 卡片通用样式 ────────────────────────────────────────── */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+}
+
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+}
+
+/* ── 滚动条 ─────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--color-bg); }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+
+/* ── Ant Design 主题覆盖 ──────────────────────────────────── */
+.ant-layout { background: var(--color-bg) !important; }
+.ant-layout-sider { background: var(--color-surface) !important; border-right: 1px solid var(--color-border); }
+.ant-menu { background: transparent !important; border-inline-end: none !important; }
+.ant-menu-item { color: var(--color-text-muted) !important; }
+.ant-menu-item-selected { background: rgba(59,130,246,0.15) !important; color: #3b82f6 !important; }
+.ant-menu-item:hover { color: var(--color-text) !important; background: rgba(255,255,255,0.05) !important; }
+.ant-tabs-tab { color: var(--color-text-muted) !important; }
+.ant-tabs-tab-active .ant-tabs-tab-btn { color: #3b82f6 !important; }
+.ant-tabs-ink-bar { background: #3b82f6 !important; }
+.ant-select-selector { background: var(--color-surface) !important; border-color: var(--color-border) !important; color: var(--color-text) !important; }
+.ant-tag { border-radius: 4px; }
