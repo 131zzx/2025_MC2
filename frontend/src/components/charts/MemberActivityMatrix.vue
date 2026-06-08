@@ -1,82 +1,91 @@
 <template>
-  <div ref="chartEl" style="width: 100%; height: 260px" />
+  <div ref="el" class="d3-chart" />
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
-import * as echarts from 'echarts'
+import { ref, onMounted, watch, onUnmounted } from 'vue'
+import * as d3 from 'd3'
 import type { MemberActivityItem } from '../../types'
-import { DATASET_COLORS, DATASET_LABELS, COMMITTEE_MEMBERS } from '../../types'
+import { COMMITTEE_MEMBERS, DATASET_COLORS, DATASET_LABELS } from '../../types'
 
 const props = defineProps<{ data: MemberActivityItem[] }>()
-const chartEl = ref<HTMLElement>()
-let chart: echarts.ECharts | null = null
+const el = ref<HTMLElement>()
 
-function render() {
-  if (!chart || !props.data.length) return
+function draw() {
+  if (!el.value || !props.data.length) return
+  el.value.innerHTML = ''
+  const W = el.value.clientWidth || 500
+  const H = 240
+  const margin = { top: 36, right: 16, bottom: 50, left: 16 }
+  const iw = W - margin.left - margin.right
+  const ih = H - margin.top - margin.bottom
 
-  const datasets = [...new Set(props.data.map(d => d.dataset))]
+  const svg = d3.select(el.value).append('svg').attr('width', W).attr('height', H)
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`)
+
   const members  = [...COMMITTEE_MEMBERS]
+  const datasets = [...new Set(props.data.map(d => d.dataset))]
 
-  const series = datasets.map(ds => ({
-    name: DATASET_LABELS[ds as keyof typeof DATASET_LABELS] ?? ds,
-    type: 'bar',
-    barMaxWidth: 24,
-    itemStyle: {
-      color: DATASET_COLORS[ds as keyof typeof DATASET_COLORS] ?? '#888',
-      opacity: 0.85,
-    },
-    data: members.map(m => {
-      const item = props.data.find(d => d.dataset === ds && d.member === m)
-      // 未出现在数据集中的成员显示为灰色条
-      if (!item || !item.in_dataset) return { value: 0, itemStyle: { color: '#1e293b', borderColor: '#334155', borderWidth: 1 } }
-      return item.total_activity
-    }),
-  }))
+  const x0 = d3.scaleBand().domain(members).range([0, iw]).padding(0.2)
+  const x1 = d3.scaleBand().domain(datasets).range([0, x0.bandwidth()]).padding(0.08)
+  const y  = d3.scaleLinear()
+    .domain([0, d3.max(props.data, d => d.total_activity) ?? 10]).nice().range([ih, 0])
 
-  chart.setOption({
-    backgroundColor: 'transparent',
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: { type: 'shadow' },
-      formatter: (params: any[]) => {
-        const member = members[params[0].dataIndex]
-        const lines = [`<b>${member}</b>`]
-        params.forEach(p => {
-          const item = props.data.find(d => d.dataset === p.seriesId && d.member === member)
-          if (!item || !item.in_dataset) {
-            lines.push(`${p.seriesName}: <span style="color:#ef4444">无记录</span>`)
-          } else {
-            lines.push(`${p.seriesName}: ${p.value} 条活动`)
-          }
-        })
-        return lines.join('<br/>')
-      },
-    },
-    legend: {
-      top: 0, textStyle: { color: '#94a3b8', fontSize: 11 },
-      itemWidth: 12, itemHeight: 8,
-    },
-    grid: { left: 16, right: 16, top: 36, bottom: 8, containLabel: true },
-    xAxis: {
-      type: 'category',
-      data: members,
-      axisLabel: { color: '#94a3b8', fontSize: 10, rotate: 15 },
-      axisLine: { lineStyle: { color: '#334155' } },
-    },
-    yAxis: {
-      type: 'value',
-      splitLine: { lineStyle: { color: '#1e293b' } },
-      axisLabel: { color: '#94a3b8', fontSize: 10 },
-    },
-    series: series.map(s => ({ ...s, id: s.name })),
+  const gMember = g.selectAll('.gm').data(members).join('g')
+    .attr('class', 'gm').attr('transform', m => `translate(${x0(m)},0)`)
+
+  datasets.forEach(ds => {
+    gMember.append('rect')
+      .attr('x', x1(ds)!).attr('width', x1.bandwidth())
+      .attr('y', m => {
+        const item = props.data.find(d => d.member === m && d.dataset === ds)
+        if (!item || !item.in_dataset) return ih - 2
+        return y(item.total_activity)
+      })
+      .attr('height', m => {
+        const item = props.data.find(d => d.member === m && d.dataset === ds)
+        if (!item || !item.in_dataset) return 2
+        return ih - y(item.total_activity)
+      })
+      .attr('fill', m => {
+        const item = props.data.find(d => d.member === m && d.dataset === ds)
+        if (!item || !item.in_dataset) return '#ef4444'
+        return DATASET_COLORS[ds as keyof typeof DATASET_COLORS] ?? '#888'
+      })
+      .attr('rx', 2)
+      .append('title').text(m => {
+        const item = props.data.find(d => d.member === m && d.dataset === ds)
+        if (!item || !item.in_dataset) return `${m} / ${DATASET_LABELS[ds as keyof typeof DATASET_LABELS]}: 无记录`
+        return `${m} / ${DATASET_LABELS[ds as keyof typeof DATASET_LABELS]}: ${item.total_activity} 条`
+      })
   })
+
+  g.append('g').attr('transform', `translate(0,${ih})`)
+    .call(d3.axisBottom(x0).tickSize(0))
+    .call(ax => ax.select('.domain').attr('stroke', '#334155'))
+    .call(ax => ax.selectAll('text').attr('fill', '#94a3b8').attr('font-size', 10).attr('transform', 'rotate(-12)').style('text-anchor', 'end'))
+
+  g.append('g').call(d3.axisLeft(y).ticks(4))
+    .call(ax => ax.select('.domain').remove())
+    .call(ax => ax.selectAll('line').attr('stroke', '#1e293b'))
+    .call(ax => ax.selectAll('text').attr('fill', '#94a3b8').attr('font-size', 10))
+
+  // 图例
+  const leg = svg.append('g').attr('transform', `translate(${margin.left}, 6)`)
+  datasets.forEach((ds, i) => {
+    leg.append('rect').attr('x', i * 100).attr('width', 8).attr('height', 8)
+      .attr('fill', DATASET_COLORS[ds as keyof typeof DATASET_COLORS]).attr('rx', 1)
+    leg.append('text').attr('x', i * 100 + 12).attr('y', 8)
+      .attr('fill', '#94a3b8').attr('font-size', 10).text(DATASET_LABELS[ds as keyof typeof DATASET_LABELS] ?? ds)
+  })
+  // 红色说明
+  leg.append('rect').attr('x', datasets.length * 100).attr('width', 8).attr('height', 8).attr('fill', '#ef4444').attr('rx', 1)
+  leg.append('text').attr('x', datasets.length * 100 + 12).attr('y', 8).attr('fill', '#94a3b8').attr('font-size', 10).text('无记录')
 }
 
-onMounted(() => {
-  chart = echarts.init(chartEl.value!, 'dark')
-  render()
-  window.addEventListener('resize', () => chart?.resize())
-})
-watch(() => props.data, render, { deep: true })
+const ro = new ResizeObserver(draw)
+onMounted(() => { ro.observe(el.value!); draw() })
+watch(() => props.data, draw, { deep: true })
+onUnmounted(() => ro.disconnect())
 </script>
+<style scoped>.d3-chart { width: 100%; }</style>

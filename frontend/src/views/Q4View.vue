@@ -1,155 +1,66 @@
 <template>
-  <div class="q4-view">
-    <a-alert
-      message="Q4 · 人物级对比分析"
-      description="选择一名委员会成员，对比该成员在 FILAH、TROUT、journalist 三个数据集中的行为差异，聚焦各数据集讲述的故事对比。"
-      type="error"
-      show-icon
-      style="margin-bottom: 20px; background: var(--color-surface); border-color: var(--color-border)"
-    />
-
-    <!-- 人物选择器 -->
-    <div class="card" style="margin-bottom: 20px; display: flex; align-items: center; gap: 20px">
-      <span class="card-title" style="margin-bottom: 0">选择成员：</span>
-      <a-radio-group v-model:value="uiStore.selectedMember" button-style="solid" size="small">
-        <a-radio-button
-          v-for="m in COMMITTEE_MEMBERS"
-          :key="m"
-          :value="m"
-        >{{ m }}</a-radio-button>
-      </a-radio-group>
+  <div class="view-container">
+    <div v-if="store.loading" class="spinner-wrap">
+      <div class="spinner" /><span>数据加载中…</span>
     </div>
+    <div v-else-if="store.error" class="alert alert-danger">{{ store.error }}</div>
 
-    <template v-if="dataStore.loaded.value">
-      <!-- 三数据集活动对比卡片 -->
-      <div class="grid-3" style="margin-bottom: 20px">
-        <div
-          v-for="ds in (['filah', 'trout', 'journalist'] as DatasetKey[])"
-          :key="ds"
-          class="card dataset-card"
-          :style="{ borderColor: DATASET_COLORS[ds] + '66' }"
-        >
-          <div class="card-title" :style="{ color: DATASET_COLORS[ds] }">
-            {{ DATASET_LABELS[ds] }}
-          </div>
-          <div class="activity-stats">
-            <div v-if="getActivity(ds)" class="stat-row">
-              <span>参与讨论/计划</span>
-              <strong>{{ getActivity(ds)?.participant_cnt ?? 0 }}</strong>
-            </div>
-            <div class="stat-row">
-              <span>行程记录</span>
-              <strong>{{ getActivity(ds)?.trip_cnt ?? 0 }}</strong>
-            </div>
-            <div class="stat-row">
-              <span>参与会议</span>
-              <strong>{{ getActivity(ds)?.meeting_cnt ?? 0 }}</strong>
-            </div>
-            <div class="stat-row">
-              <span>涉及议题</span>
-              <strong>{{ getActivity(ds)?.topic_cnt ?? 0 }}</strong>
-            </div>
-            <div v-if="ds !== 'journalist'" class="coverage-row">
-              <span>覆盖率</span>
-              <a-progress
-                :percent="Math.round((getCoverage(ds as 'filah' | 'trout')?.coverage ?? 0) * 100)"
-                size="small"
-                :stroke-color="DATASET_COLORS[ds]"
-                :trail-color="'var(--color-border)'"
-              />
-            </div>
-          </div>
-        </div>
+    <template v-else>
+      <div class="alert alert-success">
+        <strong>Q4 核心发现：</strong>
+        两个数据集均存在明显的"缺失节点"现象——FILAH 缺失大量旅游相关活动记录，TROUT 则遗漏了渔业侧的关键会议证据。记者数据集提供了最接近完整事实的基准。
       </div>
 
-      <!-- 行程地图（三数据集联动） -->
-      <div class="grid-2" style="margin-bottom: 20px">
-        <div class="card">
-          <div class="card-title">行程轨迹对比（{{ uiStore.selectedMember }}）</div>
-          <PersonTripMap
-            :member="uiStore.selectedMember"
-            :trips="dataStore.tripRecords.value"
-            :places="dataStore.placeNodes.value"
-          />
-        </div>
-        <div class="card">
-          <div class="card-title">Q4.2 · 关键缺失证据（来自 TROUT）</div>
-          <MissingEvidenceTable
-            :missing="dataStore.missingTrout.value"
-            :member="uiStore.selectedMember"
-          />
-        </div>
-      </div>
-
-      <!-- FILAH 覆盖率排行 + FILAH 偏见总结 -->
       <div class="grid-2">
         <div class="card">
-          <div class="card-title">Q4.3 · FILAH 对各成员的覆盖率排行</div>
-          <CoverageBar :data="dataStore.coverage.value" dataset="filah" />
+          <div class="card-title">缺失节点行业分布（FILAH）</div>
+          <MissingNodeChart :data="store.missingFilah" dataset="filah" />
         </div>
         <div class="card">
-          <div class="card-title">Q4.4 · FILAH 偏见总结（相对全量）</div>
-          <FilahBiasSummary
-            :node-types="dataStore.nodeTypeCounts.value"
-            :topic-dist="dataStore.topicDist.value"
-            :coverage="dataStore.coverage.value"
-          />
+          <div class="card-title">缺失节点行业分布（TROUT）</div>
+          <MissingNodeChart :data="store.missingTrout" dataset="trout" />
+        </div>
+      </div>
+
+      <!-- 成员选择 -->
+      <div style="margin: 24px 0 8px">
+        <span style="font-size:12px;color:#94a3b8;margin-right:8px">选择成员查看 TROUT 中的缺失证据：</span>
+        <div class="radio-group">
+          <button
+            v-for="m in members" :key="m"
+            class="radio-btn" :class="activeMember === m && 'radio-btn--active'"
+            @click="activeMember = m"
+          >{{ m }}</button>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">{{ activeMember }} — TROUT 中的缺失证据</div>
+          <MissingEvidenceTable :missing="store.missingTrout" :member="activeMember" />
+        </div>
+        <div class="card">
+          <div class="card-title">会议覆盖对比</div>
+          <MeetingCoverageTable :data="store.meetingCoverage" :member="activeMember" />
         </div>
       </div>
     </template>
-
-    <a-spin v-else-if="dataStore.loading.value" tip="加载数据中..." style="display: block; margin: 80px auto" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref } from 'vue'
 import { useDataStore } from '../stores/dataStore'
-import { useUiStore } from '../stores/uiStore'
-import { COMMITTEE_MEMBERS, DATASET_LABELS, DATASET_COLORS } from '../types'
-import type { DatasetKey } from '../types'
-import CoverageBar from '../components/charts/CoverageBar.vue'
-import PersonTripMap from '../components/map/PersonTripMap.vue'
-import MissingEvidenceTable from '../components/shared/MissingEvidenceTable.vue'
-import FilahBiasSummary from '../components/shared/FilahBiasSummary.vue'
+import MissingNodeChart      from '../components/charts/MissingNodeChart.vue'
+import MissingEvidenceTable  from '../components/shared/MissingEvidenceTable.vue'
+import MeetingCoverageTable  from '../components/shared/MeetingCoverageTable.vue'
+import { COMMITTEE_MEMBERS } from '../types'
 
-const dataStore = useDataStore()
-const uiStore   = useUiStore()
-
-const member = computed(() => uiStore.selectedMember)
-
-function getActivity(ds: DatasetKey) {
-  return dataStore.memberActivity.value.find(
-    d => d.member === member.value && d.dataset === ds
-  )
-}
-
-function getCoverage(ds: 'filah' | 'trout') {
-  return dataStore.coverage.value.find(
-    d => d.member === member.value && d.dataset === ds
-  )
-}
+const store = useDataStore()
+const members = COMMITTEE_MEMBERS
+const activeMember = ref(members[0])
 </script>
 
 <style scoped>
-.q4-view { max-width: 1400px; }
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
-
-.activity-stats { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
-.stat-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 13px;
-  color: var(--color-text-muted);
-}
-.stat-row strong { color: var(--color-text); font-size: 15px; }
-.coverage-row {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--color-text-muted);
-}
+.view-container { padding: 24px; max-width: 1400px; }
 </style>

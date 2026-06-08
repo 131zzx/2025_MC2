@@ -1,78 +1,63 @@
 <template>
   <div>
-    <div ref="chartEl" style="width: 100%; height: 180px" />
+    <div ref="el" class="d3-chart" />
     <div class="summary">
-      <span>共 <strong>{{ data.length }}</strong> 个缺失节点</span>
-      <span v-for="(cnt, ind) in industryCount" :key="ind" class="ind-tag" :style="{ color: INDUSTRY_COLORS[ind as keyof typeof INDUSTRY_COLORS] }">
-        {{ INDUSTRY_LABELS[ind as keyof typeof INDUSTRY_LABELS] }}: {{ cnt }}
+      共 <strong>{{ data.length }}</strong> 个缺失节点 ·
+      <span v-for="(cnt, ind) in industryCount" :key="ind"
+        :style="{ color: INDUSTRY_COLORS[ind as keyof typeof INDUSTRY_COLORS] }">
+        {{ INDUSTRY_LABELS[ind as keyof typeof INDUSTRY_LABELS] ?? ind }}: {{ cnt }}
       </span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import * as echarts from 'echarts'
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
+import * as d3 from 'd3'
 import type { MissingNode } from '../../types'
 import { INDUSTRY_COLORS, INDUSTRY_LABELS } from '../../types'
 
-const props = defineProps<{
-  data: MissingNode[]
-  dataset: 'filah' | 'trout'
-}>()
-
-const chartEl = ref<HTMLElement>()
-let chart: echarts.ECharts | null = null
+const props = defineProps<{ data: MissingNode[], dataset: string }>()
+const el = ref<HTMLElement>()
 
 const industryCount = computed(() => {
   const cnt: Record<string, number> = {}
-  props.data.forEach(d => {
-    const ind = d.topic_industry || 'unknown'
-    cnt[ind] = (cnt[ind] ?? 0) + 1
-  })
+  props.data.forEach(d => { const k = d.topic_industry || 'unknown'; cnt[k] = (cnt[k] ?? 0) + 1 })
   return cnt
 })
 
-function render() {
-  if (!chart) return
-  const entries = Object.entries(industryCount.value)
-  const pieData = entries.map(([ind, cnt]) => ({
-    name: INDUSTRY_LABELS[ind as keyof typeof INDUSTRY_LABELS] ?? ind,
-    value: cnt,
-    itemStyle: { color: INDUSTRY_COLORS[ind as keyof typeof INDUSTRY_COLORS] ?? '#888' },
-  }))
+function draw() {
+  if (!el.value) return
+  el.value.innerHTML = ''
+  const W = el.value.clientWidth || 300, H = 160
+  const svg = d3.select(el.value).append('svg').attr('width', W).attr('height', H)
+  const r = Math.min(W, H) / 2 - 10
+  const g = svg.append('g').attr('transform', `translate(${W / 2},${H / 2})`)
 
-  chart.setOption({
-    backgroundColor: 'transparent',
-    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-    series: [{
-      type: 'pie',
-      radius: ['35%', '65%'],
-      center: ['50%', '50%'],
-      data: pieData,
-      label: { color: '#94a3b8', fontSize: 11 },
-      labelLine: { lineStyle: { color: '#334155' } },
-    }],
-  })
+  const pieData = Object.entries(industryCount.value).map(([ind, cnt]) => ({ ind, cnt }))
+  const pie = d3.pie<{ ind: string; cnt: number }>().value(d => d.cnt)
+  const arc = d3.arc<d3.PieArcDatum<{ ind: string; cnt: number }>>().innerRadius(r * 0.5).outerRadius(r)
+
+  g.selectAll('path').data(pie(pieData)).join('path')
+    .attr('d', arc)
+    .attr('fill', d => INDUSTRY_COLORS[d.data.ind as keyof typeof INDUSTRY_COLORS] ?? '#888')
+    .attr('stroke', '#0f172a').attr('stroke-width', 2)
+    .append('title').text(d => `${INDUSTRY_LABELS[d.data.ind as keyof typeof INDUSTRY_LABELS] ?? d.data.ind}: ${d.data.cnt}`)
+
+  g.selectAll('text').data(pie(pieData)).join('text')
+    .attr('transform', d => `translate(${arc.centroid(d)})`)
+    .attr('text-anchor', 'middle').attr('font-size', 10).attr('fill', '#fff')
+    .text(d => d.data.cnt > 5 ? d.data.cnt : '')
 }
 
-onMounted(() => {
-  chart = echarts.init(chartEl.value!, 'dark')
-  render()
-  window.addEventListener('resize', () => chart?.resize())
-})
-watch(() => props.data, render, { deep: true })
+const ro = new ResizeObserver(draw)
+onMounted(() => { ro.observe(el.value!); draw() })
+watch(() => props.data, draw, { deep: true })
+onUnmounted(() => ro.disconnect())
 </script>
 
 <style scoped>
-.summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  font-size: 12px;
-  color: var(--color-text-muted);
-  margin-top: 8px;
-}
+.d3-chart { width: 100%; }
+.summary { font-size: 11px; color: var(--color-text-muted); margin-top: 6px; display: flex; flex-wrap: wrap; gap: 8px; }
 .summary strong { color: var(--color-text); }
-.ind-tag { font-weight: 600; }
 </style>

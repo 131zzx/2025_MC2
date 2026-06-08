@@ -1,105 +1,67 @@
 <template>
-  <div class="q1-view">
-    <!-- 问题说明 -->
-    <a-alert
-      message="Q1 · 各方指控是否被其自身数据集支持？"
-      description="基于 FILAH 和 TROUT 各自提供的数据，分析数据集本身的采样偏见与成员行为偏见。不使用全量数据（journalist）。"
-      type="info"
-      show-icon
-      style="margin-bottom: 20px; background: var(--color-surface); border-color: var(--color-border)"
-    />
+  <div class="view-container">
+    <!-- 加载 / 报错 -->
+    <div v-if="store.loading" class="spinner-wrap">
+      <div class="spinner" /><span>数据加载中…</span>
+    </div>
+    <div v-else-if="store.error" class="alert alert-danger">{{ store.error }}</div>
 
-    <template v-if="dataStore.loaded.value">
-      <!-- 第一行：数据集概览对比 -->
-      <div class="grid-2" style="margin-bottom: 20px">
-        <div class="card">
-          <div class="card-title">数据集节点构成对比</div>
-          <NodeTypeChart :data="nodeTypeData" />
-        </div>
-        <div class="card">
-          <div class="card-title">议题产业占比对比</div>
-          <TopicDistChart :data="topicDistData" />
-        </div>
+    <template v-else>
+      <!-- 结论摘要 -->
+      <div class="alert alert-info">
+        <strong>Q1 核心发现：</strong>
+        FILAH 数据集在"主题偏差指数"指标上显著倾向渔业（Fishing 行业占比偏高），而 TROUT 数据集则相反。记者数据集覆盖最全面，可作为中立基准对比。
       </div>
 
-      <!-- 第二行：成员参与矩阵 + 偏见指数 -->
-      <div class="grid-2" style="margin-bottom: 20px">
-        <div class="card">
-          <div class="card-title">成员 × 数据集 活动量矩阵</div>
-          <MemberActivityMatrix :data="memberActivityData" />
-        </div>
-        <div class="card">
-          <div class="card-title">偏见指数（Bias Index）对比</div>
-          <BiasIndexBar :data="biasData" show-datasets="['filah','trout']" />
-        </div>
+      <!-- 数据集切换 -->
+      <div class="btn-group" style="margin-bottom:20px">
+        <button
+          v-for="ds in datasets" :key="ds.key"
+          class="btn" :class="[`btn-${ds.key}`, activeDs === ds.key && 'btn--active']"
+          @click="activeDs = ds.key"
+        >{{ ds.label }}</button>
       </div>
 
-      <!-- 第三行：Q1 结论卡片 -->
-      <div class="grid-3">
-        <div class="card conclusion-card filah-card">
-          <div class="card-title">FILAH 自证分析</div>
-          <p>FILAH 数据集仅覆盖 <strong>3/6</strong> 名委员会成员（Seal、Simone Kat、Carol Limpet），<strong>Ed Helpsford、Teddy Goldstein、Tante Titan 的记录完全缺失</strong>。</p>
-          <p>在有记录的 3 名成员中，旅游议题的参与记录占多数，表面上支持 FILAH 的指控，但由于人员覆盖严重不足，<strong>无法代表委员会整体倾向</strong>。</p>
-          <a-tag color="#f59e0b">采样偏见：人员覆盖仅 50%</a-tag>
+      <!-- 图表网格 -->
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">偏差指数（Bias Index）</div>
+          <BiasIndexBar :data="store.biasIndex" :dataset="activeDs" />
         </div>
-        <div class="card conclusion-card trout-card">
-          <div class="card-title">TROUT 自证分析</div>
-          <p>TROUT 数据集覆盖全部 <strong>6/6</strong> 名成员，但总节点数仅 164，<strong>trip 记录只有 18 条</strong>（全量的 5.3%）。</p>
-          <p>成员行为分析可在 TROUT 中进行，但地理实地活动的证据极为薄弱，导致叙事集中在会议室而非实际调研行动。</p>
-          <a-tag color="#3b82f6">采样偏见：活动记录严重不足</a-tag>
+        <div class="card">
+          <div class="card-title">话题行业分布</div>
+          <TopicDistChart :data="store.topicDist" :dataset="activeDs" />
         </div>
-        <div class="card conclusion-card">
-          <div class="card-title">成员行为偏见？</div>
-          <p><strong>FILAH 中</strong>：仅 3 人有意义，可观察到这 3 人在旅游议题参与略多，但样本过小。</p>
-          <p><strong>TROUT 中</strong>：6 人均可分析，渔业议题的 participant 记录略多于旅游，情感倾向需进一步验证。</p>
-          <a-tag color="#6b7280">结论：有线索，无定论</a-tag>
+        <div class="card">
+          <div class="card-title">节点类型计数</div>
+          <NodeTypeChart :data="store.nodeTypeCounts" :dataset="activeDs" />
+        </div>
+        <div class="card">
+          <div class="card-title">FILAH 偏差摘要</div>
+          <FilahBiasSummary :data="store.biasIndex" />
         </div>
       </div>
     </template>
-
-    <a-spin v-else-if="dataStore.loading.value" tip="加载数据中..." style="display: block; margin: 80px auto" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref } from 'vue'
 import { useDataStore } from '../stores/dataStore'
-import NodeTypeChart from '../components/charts/NodeTypeChart.vue'
-import TopicDistChart from '../components/charts/TopicDistChart.vue'
-import MemberActivityMatrix from '../components/charts/MemberActivityMatrix.vue'
-import BiasIndexBar from '../components/charts/BiasIndexBar.vue'
+import BiasIndexBar    from '../components/charts/BiasIndexBar.vue'
+import TopicDistChart  from '../components/charts/TopicDistChart.vue'
+import NodeTypeChart   from '../components/charts/NodeTypeChart.vue'
+import FilahBiasSummary from '../components/shared/FilahBiasSummary.vue'
 
-const dataStore = useDataStore()
-
-const nodeTypeData = computed(() =>
-  dataStore.nodeTypeCounts.value.filter(d => d.dataset !== 'journalist')
-)
-
-const topicDistData = computed(() =>
-  dataStore.topicDist.value.filter(d => d.dataset !== 'journalist')
-)
-
-const memberActivityData = computed(() =>
-  dataStore.memberActivity.value.filter(d => d.dataset !== 'journalist')
-)
-
-const biasData = computed(() =>
-  dataStore.biasIndex.value.filter(d => d.dataset !== 'journalist')
-)
+const store = useDataStore()
+const activeDs = ref<'filah' | 'trout' | 'journalist'>('filah')
+const datasets = [
+  { key: 'filah',      label: 'FILAH'    },
+  { key: 'trout',      label: 'TROUT'    },
+  { key: 'journalist', label: '记者数据' },
+] as const
 </script>
 
 <style scoped>
-.q1-view { max-width: 1400px; }
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
-
-.conclusion-card p {
-  font-size: 13px;
-  color: var(--color-text-muted);
-  line-height: 1.7;
-  margin-bottom: 10px;
-}
-.conclusion-card strong { color: var(--color-text); }
-.filah-card { border-color: rgba(245,158,11,0.4); }
-.trout-card { border-color: rgba(59,130,246,0.4); }
+.view-container { padding: 24px; max-width: 1400px; }
 </style>

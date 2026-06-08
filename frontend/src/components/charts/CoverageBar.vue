@@ -1,81 +1,75 @@
 <template>
-  <div ref="chartEl" style="width: 100%; height: 260px" />
+  <div ref="el" class="d3-chart" />
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import * as echarts from 'echarts'
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
+import * as d3 from 'd3'
 import type { CoverageItem } from '../../types'
-import { COMMITTEE_MEMBERS, DATASET_COLORS } from '../../types'
+import { DATASET_COLORS } from '../../types'
 
-const props = defineProps<{
-  data: CoverageItem[]
-  dataset: 'filah' | 'trout'
-}>()
+const props = defineProps<{ data: CoverageItem[], dataset: 'filah' | 'trout' }>()
+const el = ref<HTMLElement>()
 
-const chartEl = ref<HTMLElement>()
-let chart: echarts.ECharts | null = null
-
-const filtered = computed(() =>
-  props.data.filter(d => d.dataset === props.dataset)
+const sorted = computed(() =>
+  [...props.data.filter(d => d.dataset === props.dataset)]
+    .sort((a, b) => a.coverage - b.coverage)
 )
 
-function render() {
-  if (!chart || !filtered.value.length) return
+function draw() {
+  if (!el.value || !sorted.value.length) return
+  el.value.innerHTML = ''
+  const W = el.value.clientWidth || 400, H = 240
+  const margin = { top: 8, right: 60, bottom: 8, left: 110 }
+  const iw = W - margin.left - margin.right
+  const ih = H - margin.top - margin.bottom
 
-  // 按覆盖率升序排列（受影响最大的排前面）
-  const sorted = [...filtered.value].sort((a, b) => a.coverage - b.coverage)
-  const members = sorted.map(d => d.member)
-  const values  = sorted.map(d => Math.round(d.coverage * 100))
-  const color   = DATASET_COLORS[props.dataset]
+  const svg = d3.select(el.value).append('svg').attr('width', W).attr('height', H)
+  const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`)
 
-  chart.setOption({
-    backgroundColor: 'transparent',
-    tooltip: {
-      trigger: 'axis',
-      formatter: (params: any[]) => {
-        const p = params[0]
-        const item = sorted[p.dataIndex]
-        return `<b>${item.member}</b><br/>覆盖率: ${p.value}%<br/>有记录活动: ${item.overlap_cnt} / ${item.jo_activity_cnt}`
-      },
-    },
-    grid: { left: 16, right: 60, top: 8, bottom: 8, containLabel: true },
-    xAxis: {
-      type: 'value', max: 100,
-      axisLabel: { color: '#94a3b8', formatter: '{value}%' },
-      splitLine: { lineStyle: { color: '#1e293b' } },
-    },
-    yAxis: {
-      type: 'category', data: members,
-      axisLabel: { color: '#94a3b8', fontSize: 11 },
-      axisLine: { lineStyle: { color: '#334155' } },
-    },
-    series: [{
-      type: 'bar',
-      barMaxWidth: 22,
-      data: values.map(v => ({
-        value: v,
-        itemStyle: {
-          color: v === 0 ? '#ef4444' : v < 20 ? '#f97316' : color,
-        },
-      })),
-      label: {
-        show: true, position: 'right',
-        formatter: '{c}%',
-        color: '#94a3b8', fontSize: 11,
-      },
-      markLine: {
-        data: [{ xAxis: 50, label: { formatter: '50%', color: '#94a3b8' }, lineStyle: { color: '#334155', type: 'dashed' } }],
-        symbol: 'none',
-      },
-    }],
-  })
+  const members = sorted.value.map(d => d.member)
+  const y = d3.scaleBand().domain(members).range([0, ih]).padding(0.25)
+  const x = d3.scaleLinear().domain([0, 1]).range([0, iw])
+
+  // 背景轨道
+  g.selectAll('.track').data(sorted.value).join('rect').attr('class', 'track')
+    .attr('x', 0).attr('y', d => y(d.member)!).attr('width', iw).attr('height', y.bandwidth())
+    .attr('fill', '#1e293b').attr('rx', 4)
+
+  // 覆盖率条
+  g.selectAll('.bar').data(sorted.value).join('rect').attr('class', 'bar')
+    .attr('x', 0).attr('y', d => y(d.member)!)
+    .attr('width', d => x(d.coverage))
+    .attr('height', y.bandwidth())
+    .attr('fill', d => d.coverage === 0 ? '#ef4444' : d.coverage < 0.2 ? '#f97316' : DATASET_COLORS[props.dataset])
+    .attr('rx', 4)
+    .append('title').text(d => `${d.member}: ${(d.coverage * 100).toFixed(1)}% (${d.overlap_cnt}/${d.jo_activity_cnt})`)
+
+  // 百分比标签
+  g.selectAll('.pct').data(sorted.value).join('text').attr('class', 'pct')
+    .attr('x', d => x(d.coverage) + 6)
+    .attr('y', d => y(d.member)! + y.bandwidth() / 2 + 4)
+    .attr('font-size', 11).attr('fill', '#94a3b8')
+    .text(d => `${(d.coverage * 100).toFixed(0)}%`)
+
+  // Y 轴成员名
+  g.append('g').call(d3.axisLeft(y).tickSize(0))
+    .call(ax => ax.select('.domain').remove())
+    .call(ax => ax.selectAll('text').attr('fill', d => {
+      const item = sorted.value.find(s => s.member === d)
+      return item?.coverage === 0 ? '#ef4444' : '#94a3b8'
+    }).attr('font-size', 11))
+
+  // 50% 参考线
+  g.append('line').attr('x1', x(0.5)).attr('x2', x(0.5)).attr('y1', 0).attr('y2', ih)
+    .attr('stroke', '#475569').attr('stroke-dasharray', '4 3')
+  g.append('text').attr('x', x(0.5) + 3).attr('y', -4)
+    .attr('fill', '#475569').attr('font-size', 9).text('50%')
 }
 
-onMounted(() => {
-  chart = echarts.init(chartEl.value!, 'dark')
-  render()
-  window.addEventListener('resize', () => chart?.resize())
-})
-watch([() => props.data, () => props.dataset], render, { deep: true })
+const ro = new ResizeObserver(draw)
+onMounted(() => { ro.observe(el.value!); draw() })
+watch([() => props.data, () => props.dataset], draw, { deep: true })
+onUnmounted(() => ro.disconnect())
 </script>
+<style scoped>.d3-chart { width: 100%; }</style>
