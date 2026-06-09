@@ -15,8 +15,12 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="member in COMMITTEE_MEMBERS" :key="member">
-          <td class="member-name">{{ member }}</td>
+        <tr
+          v-for="member in COMMITTEE_MEMBERS" :key="member"
+          :class="{ 'row--selected': selectedMember === member, 'row--clickable': true }"
+          @click="onMemberClick(member)"
+        >
+          <td class="member-name" :class="{ 'name--selected': selectedMember === member }">{{ member }}</td>
           <td v-for="ds in datasets" :key="ds.key" class="cell">
             <div
               class="cell-inner"
@@ -48,9 +52,21 @@ import type { CoverageItem, MemberActivityItem } from '../../types'
 import { COMMITTEE_MEMBERS } from '../../types'
 
 const props = defineProps<{
-  coverage: CoverageItem[]
-  memberActivity: MemberActivityItem[]
+  /** 兼容旧接口 */
+  coverage?: CoverageItem[]
+  memberActivity?: MemberActivityItem[]
+  /** 新接口：直接传 coverage data */
+  data?: CoverageItem[]
+  selectedMember?: string
 }>()
+
+const emit = defineEmits<{
+  (e: 'select-member', name: string | null): void
+}>()
+
+// 兼容新旧两种传参方式
+const coverageData = () => props.data ?? props.coverage ?? []
+const activityData = () => props.memberActivity ?? []
 
 const datasets = [
   { key: 'filah', label: 'FILAH' },
@@ -58,7 +74,7 @@ const datasets = [
 ] as const
 
 function getCovItem(member: string, ds: string) {
-  return props.coverage.find(d => d.member === member && d.dataset === ds)
+  return coverageData().find(d => d.member === member && d.dataset === ds)
 }
 
 function getCellIcon(member: string, ds: string): string {
@@ -87,8 +103,12 @@ function getCellClass(member: string, ds: string): string {
 }
 
 function getJoTotal(member: string): number {
-  const act = props.memberActivity.find(d => d.member === member && d.dataset === 'journalist')
+  const act = activityData().find(d => d.member === member && d.dataset === 'journalist')
   return act?.total_activity ?? 0
+}
+
+function onMemberClick(member: string) {
+  emit('select-member', props.selectedMember === member ? null : member)
 }
 </script>
 
@@ -114,9 +134,13 @@ function getJoTotal(member: string): number {
 .matrix-table td {
   padding: 6px 10px; border-bottom: 1px solid #f1f5f9;
 }
+.row--clickable { cursor: pointer; transition: background .12s; }
+.row--clickable:hover { background: #f8fafc; }
+.row--selected { background: #eff6ff !important; }
 .member-name {
   color: #1e293b; font-weight: 600; font-size: 12px; padding-left: 4px;
 }
+.name--selected { color: #2563eb; font-weight: 700; }
 
 .cell { text-align: center; }
 .cell-inner {

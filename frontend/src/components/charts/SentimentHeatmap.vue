@@ -11,6 +11,12 @@ import { COMMITTEE_MEMBERS, INDUSTRY_LABELS } from '../../types'
 const props = defineProps<{
   data: SentimentAggItem[]
   dataset: string
+  highlightedMember?: string
+}>()
+
+const emit = defineEmits<{
+  (e: 'member-click', name: string): void
+  (e: 'member-hover', name: string | null): void
 }>()
 
 const el = ref<HTMLElement>()
@@ -96,13 +102,33 @@ function draw() {
     })
   })
 
+  // 成员高亮列背景
+  if (props.highlightedMember) {
+    g.append('rect')
+      .attr('x', xScale(props.highlightedMember)! - 3)
+      .attr('y', -8)
+      .attr('width', xScale.bandwidth() + 6)
+      .attr('height', ih + 8)
+      .attr('fill', '#dbeafe')
+      .attr('rx', 5)
+      .attr('opacity', 0.5)
+      .lower()
+  }
+
   // X 轴（成员名，斜体避免重叠）
   g.append('g').attr('transform', `translate(0,${ih})`)
     .call(d3.axisBottom(xScale).tickSize(0))
     .call(ax => ax.select('.domain').remove())
-    .call(ax => ax.selectAll('text')
-      .attr('fill', '#475569').attr('font-size', 10).attr('font-weight', 500)
-      .attr('transform', 'rotate(-18)').style('text-anchor', 'end').attr('dy', '0.5em'))
+    .call(ax => ax.selectAll<SVGTextElement, string>('text')
+      .attr('fill', d => d === props.highlightedMember ? '#2563eb' : '#475569')
+      .attr('font-size', 10)
+      .attr('font-weight', d => d === props.highlightedMember ? 700 : 500)
+      .attr('transform', 'rotate(-18)').style('text-anchor', 'end').attr('dy', '0.5em')
+      .attr('cursor', 'pointer')
+      .on('click', (_, d) => emit('member-click', d))
+      .on('mouseenter', (_, d) => emit('member-hover', d))
+      .on('mouseleave', () => emit('member-hover', null))
+    )
 
   // Y 轴（行业）
   g.append('g').call(
@@ -147,7 +173,7 @@ function draw() {
 
 const ro = new ResizeObserver(draw)
 onMounted(() => { ro.observe(el.value!); draw() })
-watch([() => props.data, () => props.dataset], draw, { deep: true })
+watch([() => props.data, () => props.dataset, () => props.highlightedMember], draw, { deep: true })
 onUnmounted(() => ro.disconnect())
 </script>
 <style scoped>.d3-chart { width: 100%; }</style>
