@@ -144,6 +144,7 @@ export interface MissingNode {
   topic_key:        string | null
   topic_industry:   Industry
   topic_bias_score: number
+  related_members:  string[]
 }
 
 // 所有 6 名委员会成员

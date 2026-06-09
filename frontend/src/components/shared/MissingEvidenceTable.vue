@@ -8,7 +8,7 @@
         <thead>
           <tr>
             <th>#</th>
-            <th>节点 ID</th>
+            <th><TermExplanation term="节点">节点</TermExplanation> ID</th>
             <th>类型</th>
             <th>产业</th>
             <th>影响</th>
@@ -37,6 +37,7 @@
 import { computed } from 'vue'
 import type { MissingNode } from '../../types'
 import { INDUSTRY_COLORS, INDUSTRY_LABELS } from '../../types'
+import TermExplanation from './TermExplanation.vue'
 
 const props = defineProps<{
   missing: MissingNode[]
@@ -45,9 +46,13 @@ const props = defineProps<{
 
 // 旅游 > 渔业 > 混合 > 其他，取前10
 const topItems = computed(() => {
+  const missing = props.missing || []
   const order: Record<string, number> = { tourism: 0, fishing: 1, mixed: 2, neutral: 3, unknown: 4 }
-  return [...props.missing]
-    .filter(d => d.type === 'trip' || d.type === 'discussion' || d.type === 'plan')
+  return [...missing]
+    .filter(d => 
+      (d.related_members && d.related_members.includes(props.member)) &&
+      (d.type === 'trip' || d.type === 'discussion' || d.type === 'plan')
+    )
     .sort((a, b) => (order[a.topic_industry] ?? 5) - (order[b.topic_industry] ?? 5))
     .slice(0, 10)
 })

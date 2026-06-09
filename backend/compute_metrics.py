@@ -250,21 +250,29 @@ def compute_missing_evidence(
     edges_by_ds: dict[str, pd.DataFrame],
 ) -> dict[str, pd.DataFrame]:
     """
-    全量中存在、而子集中缺失的活动节点。
-    返回 {"filah": df, "trout": df}，附产业分类。
+    全量中存在、而子集中缺失的活动节点，并标记关联的人。
+    返回 {"filah": df, "trout": df}，附产业分类和关联人员。
     """
     result = {}
-    jo_nodes = set(nodes_by_ds["journalist"]["id"].tolist())
+    jo_ndf = nodes_by_ds["journalist"]
+    jo_edf = edges_by_ds["journalist"]
+    
+    # 建立活动节点 -> 人员的映射
+    activity_to_members = jo_edf[jo_edf["target"].isin(COMMITTEE_MEMBERS)].groupby("source")["target"].apply(list).to_dict()
 
     for ds in ["filah", "trout"]:
         ds_nodes = set(nodes_by_ds[ds]["id"].tolist())
+        jo_nodes = set(jo_ndf["id"].tolist())
         missing_ids = jo_nodes - ds_nodes
 
-        jo_ndf = nodes_by_ds["journalist"]
         missing_df = jo_ndf[jo_ndf["id"].isin(missing_ids)].copy()
         missing_df["topic_key"] = missing_df["id"].apply(extract_topic_from_id)
         missing_df["topic_industry"] = missing_df["topic_key"].apply(get_topic_industry)
         missing_df["topic_bias_score"] = missing_df["topic_key"].apply(get_topic_bias_score)
+        
+        # 关联人员
+        missing_df["related_members"] = missing_df["id"].apply(lambda x: activity_to_members.get(x, []))
+        
         result[ds] = missing_df.reset_index(drop=True)
 
     return result
@@ -345,6 +353,51 @@ def compute_meeting_coverage(meeting_df: pd.DataFrame) -> pd.DataFrame:
     return meeting_df
 
 
+# ── 10. 会议议题分布（用于 StreamGraph） ──────────────────────────
+
+def compute_meeting_topic_distribution(
+    nodes_by_ds: dict[str, pd.DataFrame],
+    edges_by_ds: dict[str, pd.DataFrame],
+) -> pd.DataFrame:
+    """
+    统计每个会议中讨论的不同产业议题的数量。
+    """
+    edf = edges_by_ds["journalist"]
+    
+    # 1. 找到 Meeting -> (Discussion/Plan)
+    # 通常是 Discussion/Plan --(part_of)--> Meeting
+    part_of = edf[edf["role"] == "part_of"]
+    
+    # 2. 找到 (Discussion/Plan) -> Topic
+    # 通常是 Discussion --(about)--> Topic 或 Plan --(plan)--> Topic
+    about_plan = edf[edf["role"].isin(["about", "plan"])]
+    
+    # 我们需要找到所有连通 Meeting 和 Topic 的路径
+    # 路径 A: Topic <--(about/plan)-- DP --(part_of)--> Meeting
+    m_to_dp = part_of[["source", "target"]].rename(columns={"source": "dp_id", "target": "meeting_id"})
+    dp_to_t = about_plan[["source", "target"]].rename(columns={"source": "dp_id", "target": "topic_id"})
+    
+    m_dp_t = m_to_dp.merge(dp_to_t, on="dp_id")
+    
+    # 如果 m_dp_t 为空，尝试反向角色
+    if m_dp_t.empty:
+        # 尝试 Meeting --(part_of)--> DP
+        m_to_dp_rev = part_of[["source", "target"]].rename(columns={"target": "dp_id", "source": "meeting_id"})
+        m_dp_t = m_to_dp_rev.merge(dp_to_t, on="dp_id")
+
+    # 提取 industry
+    m_dp_t["topic_key"] = m_dp_t["topic_id"].apply(extract_topic_from_id)
+    m_dp_t["industry"] = m_dp_t["topic_key"].apply(get_topic_industry)
+    
+    # 过滤掉 unknown
+    m_dp_t = m_dp_t[m_dp_t["industry"] != "unknown"]
+    
+    # 按会议和产业分组计数
+    dist = m_dp_t.groupby(["meeting_id", "industry"]).size().reset_index(name="count")
+    
+    return dist
+
+
 # ── 主入口 ────────────────────────────────────────────────
 
 def run_all(nodes_by_ds, edges_by_ds, topic_df, participant_df, trip_df, meeting_df):
@@ -386,6 +439,9 @@ def run_all(nodes_by_ds, edges_by_ds, topic_df, participant_df, trip_df, meeting
     exclusive = meeting_cov[meeting_cov["exclusive_to_journalist"]]
     print(f"[meeting_coverage] 仅全量独有会议: {len(exclusive)} 次")
 
+    meeting_topic_dist = compute_meeting_topic_distribution(nodes_by_ds, edges_by_ds)
+    print(f"[meeting_topic_dist] {len(meeting_topic_dist)} 条记录")
+
     return {
         "bias_index":        bias,
         "sentiment_bias":    sent_bias,
@@ -398,6 +454,7 @@ def run_all(nodes_by_ds, edges_by_ds, topic_df, participant_df, trip_df, meeting
         "missing_trout":     missing["trout"],
         "member_activity":   member_act,
         "meeting_coverage":  meeting_cov,
+        "meeting_topic_dist": meeting_topic_dist,
     }
 
 

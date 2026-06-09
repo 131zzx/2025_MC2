@@ -1,158 +1,145 @@
 <template>
   <div class="layout">
-    <!-- 侧边栏 -->
+    <!-- 侧边栏：仅导航 -->
     <aside class="sidebar">
       <div class="logo">
-        <span class="logo-icon">MC2</span>
+        <div class="logo-badge">MC2</div>
         <div>
-          <div class="logo-title">COOTEFOO</div>
-          <div class="logo-sub">偏见可视化分析 · VAST 2025 MC2</div>
+          <div class="logo-title">COOTEFOO 偏见分析</div>
+          <div class="logo-sub">VAST 2025 · Mini-Challenge 2</div>
         </div>
       </div>
 
       <nav class="nav">
-        <router-link
-          v-for="item in navItems"
-          :key="item.to"
-          :to="item.to"
-          class="nav-item"
-          active-class="nav-item--active"
+        <button
+          v-for="tab in tabs" :key="tab.id"
+          class="nav-item" :class="{ 'nav-item--active': activeTab === tab.id }"
+          @click="activeTab = tab.id"
         >
-          <span class="nav-icon">{{ item.icon }}</span>
-          <span class="nav-label">{{ item.label }}</span>
-        </router-link>
+          <div class="nav-icon">{{ tab.icon }}</div>
+          <div class="nav-text">
+            <span class="nav-label">{{ tab.label }}</span>
+            <span class="nav-desc">{{ tab.desc }}</span>
+          </div>
+        </button>
       </nav>
 
+      <!-- 数据状态 -->
       <div class="sidebar-footer">
-        <div class="data-badge" :class="statusClass">
-          {{ statusText }}
-        </div>
-        <div class="dataset-legend">
-          <span class="leg filah">■ FILAH</span>
-          <span class="leg trout">■ TROUT</span>
-          <span class="leg journalist">■ journalist</span>
-        </div>
+        <div class="data-badge" :class="statusClass">{{ statusText }}</div>
       </div>
     </aside>
 
-    <!-- 主区域 -->
+    <!-- 主内容区 -->
     <div class="main">
-      <header class="topbar">
-        <h1 class="page-title">{{ currentTitle }}</h1>
-      </header>
       <main class="content">
-        <router-view v-slot="{ Component }">
-          <transition name="fade" mode="out-in">
-            <component :is="Component" />
+        <div v-if="dataStore.loading" class="spinner-wrap">
+          <div class="spinner" /><span>数据加载中...</span>
+        </div>
+        <div v-else-if="dataStore.error" class="alert-error">{{ dataStore.error }}</div>
+        <template v-else>
+          <transition name="tab-fade" mode="out-in">
+            <component :is="currentTabComponent" :key="activeTab" />
           </transition>
-        </router-view>
+        </template>
       </main>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed, onMounted, defineAsyncComponent } from 'vue'
 import { useDataStore } from './stores/dataStore'
 
-const route     = useRoute()
 const dataStore = useDataStore()
+onMounted(() => dataStore.loadAll())
 
-const navItems = [
-  { to: '/q1', icon: 'Q1', label: '数据集自证分析' },
-  { to: '/q2', icon: 'Q2', label: '时间分配与偏袒' },
-  { to: '/q3', icon: 'Q3', label: '不完整 vs 全量' },
-  { to: '/q4', icon: 'Q4', label: '人物级对比' },
+const tabs = [
+  { id: 'bias',   icon: '⊖', label: '偏见全景', desc: '采样偏见与数据集对比' },
+  { id: 'member', icon: '◈', label: '委员行为', desc: '个体活动与情感分析' },
+  { id: 'trip',   icon: '◎', label: '行程地图', desc: '时空分布与地域关联' },
 ]
 
-const currentTitle = computed(() => (route.meta as any).title ?? 'COOTEFOO 可视化分析')
+const activeTab = ref('bias')
+
+const tabComponents: Record<string, any> = {
+  bias:   defineAsyncComponent(() => import('./views/BiasView.vue')),
+  member: defineAsyncComponent(() => import('./views/MemberView.vue')),
+  trip:   defineAsyncComponent(() => import('./views/TripView.vue')),
+}
+const currentTabComponent = computed(() => tabComponents[activeTab.value])
 
 const statusClass = computed(() => ({
   'badge--loading': dataStore.loading,
   'badge--error':   !!dataStore.error,
   'badge--ok':      dataStore.loaded,
 }))
-
 const statusText = computed(() => {
   if (dataStore.loading) return '加载数据中...'
   if (dataStore.error)   return '数据加载失败'
   if (dataStore.loaded)  return '数据已就绪'
   return '待加载'
 })
-
-onMounted(() => dataStore.loadAll())
 </script>
 
 <style scoped>
-.layout { display: flex; height: 100vh; overflow: hidden; background: #f8fafc; }
+.layout { display: flex; height: 100vh; overflow: hidden; background: #f1f5f9; }
 
-/* ── 侧边栏 ── */
 .sidebar {
-  width: 220px; flex-shrink: 0;
-  background: #ffffff;
-  border-right: 1px solid #e2e8f0;
-  display: flex; flex-direction: column; overflow: hidden;
+  width: 200px; flex-shrink: 0;
+  background: #ffffff; border-right: 1px solid #e2e8f0;
+  display: flex; flex-direction: column;
 }
+
 .logo {
   display: flex; align-items: center; gap: 10px;
-  padding: 20px 16px 16px;
-  border-bottom: 1px solid #e2e8f0;
+  padding: 16px 14px 12px; border-bottom: 1px solid #f1f5f9;
 }
-.logo-icon {
-  font-size: 11px; font-weight: 800; letter-spacing: .04em;
-  background: #1e293b; color: #fff;
-  padding: 4px 6px; border-radius: 6px;
+.logo-badge {
+  font-size: 10px; font-weight: 800; letter-spacing: .06em;
+  background: #1e293b; color: #fff; padding: 5px 6px; border-radius: 6px; flex-shrink: 0;
 }
-.logo-title { font-size: 13px; font-weight: 700; color: #1e293b; }
-.logo-sub   { font-size: 10px; color: #94a3b8; line-height: 1.4; }
+.logo-title { font-size: 11.5px; font-weight: 700; color: #1e293b; line-height: 1.3; }
+.logo-sub   { font-size: 9px; color: #94a3b8; margin-top: 1px; }
 
-.nav { flex: 1; padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; }
+.nav { padding: 10px 8px; display: flex; flex-direction: column; gap: 3px; flex: 1; }
 .nav-item {
   display: flex; align-items: center; gap: 10px;
-  padding: 9px 12px; border-radius: 8px;
-  text-decoration: none; color: #64748b;
-  font-size: 13px; transition: all 0.15s;
+  padding: 10px 12px; border-radius: 10px;
+  border: none; background: transparent; cursor: pointer;
+  text-align: left; transition: all .12s; width: 100%;
 }
-.nav-item:hover { background: #f1f5f9; color: #1e293b; }
-.nav-item--active { background: #eff6ff; color: #2563eb; font-weight: 700; }
+.nav-item:hover { background: #f8fafc; }
+.nav-item--active { background: #eff6ff; }
 .nav-icon {
-  font-size: 10px; font-weight: 800;
-  width: 22px; height: 22px; border-radius: 5px;
+  font-size: 14px; width: 28px; height: 28px; border-radius: 7px;
   display: flex; align-items: center; justify-content: center;
-  background: #e2e8f0; color: #475569; flex-shrink: 0;
+  background: #f1f5f9; flex-shrink: 0;
 }
 .nav-item--active .nav-icon { background: #dbeafe; color: #2563eb; }
+.nav-text { display: flex; flex-direction: column; }
+.nav-label { font-size: 13px; font-weight: 600; color: #374151; }
+.nav-item--active .nav-label { color: #2563eb; }
+.nav-desc { font-size: 10px; color: #94a3b8; margin-top: 1px; }
 
-.sidebar-footer { padding: 12px 16px; border-top: 1px solid #e2e8f0; }
-.data-badge {
-  font-size: 11px; padding: 4px 8px; border-radius: 4px;
-  margin-bottom: 10px; background: #f1f5f9; color: #64748b;
-  font-weight: 500;
-}
+.sidebar-footer { padding: 12px; border-top: 1px solid #f1f5f9; }
+.data-badge { font-size: 11px; padding: 5px 8px; border-radius: 5px; background: #f1f5f9; color: #64748b; }
 .badge--loading { background: #fffbeb; color: #b45309; }
 .badge--error   { background: #fef2f2; color: #b91c1c; }
 .badge--ok      { background: #f0fdf4; color: #15803d; }
 
-.dataset-legend { display: flex; flex-direction: column; gap: 4px; }
-.leg { font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 5px; }
-.leg::before { content: ''; width: 8px; height: 8px; border-radius: 50%; }
-.leg.filah::before      { background: #d97706; }
-.leg.trout::before      { background: #2563eb; }
-.leg.journalist::before { background: #059669; }
+.main { flex: 1; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+.content { flex: 1; overflow-y: auto; }
 
-/* ── 主区域 ── */
-.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-.topbar {
-  height: 52px; flex-shrink: 0;
-  background: #ffffff; border-bottom: 1px solid #e2e8f0;
-  padding: 0 24px; display: flex; align-items: center;
-  box-shadow: 0 1px 0 #e2e8f0;
+.spinner-wrap {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  height: 100%; font-size: 13px; color: #64748b;
 }
-.page-title { font-size: 15px; font-weight: 700; color: #1e293b; margin: 0; }
-.content { flex: 1; overflow-y: auto; padding: 24px; background: #f8fafc; }
+.alert-error {
+  margin: 24px; padding: 14px; background: #fef2f2; border: 1px solid #fecaca;
+  border-radius: 8px; color: #b91c1c; font-size: 13px;
+}
 
-/* 路由动画 */
-.fade-enter-active, .fade-leave-active { transition: opacity 0.15s; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
+.tab-fade-enter-active, .tab-fade-leave-active { transition: opacity .12s; }
+.tab-fade-enter-from, .tab-fade-leave-to { opacity: 0; }
 </style>
