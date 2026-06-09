@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="ego-wrap">
     <div class="ego-header">
       <span class="ego-title">关系网络：{{ member || '（未选中成员）' }}</span>
@@ -56,6 +56,9 @@
   </div>
 </template>
 
+<script lang="ts">
+export default {}
+</script>
 <script setup lang="ts">
 import {
   ref, watch, onMounted, onUnmounted, nextTick, computed,

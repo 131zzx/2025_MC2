@@ -1,386 +1,377 @@
 <template>
-  <div class="map-wrap">
-    <div class="map-header">
-      <span class="map-title">Oceanus 地区地图</span>
-      <div class="map-controls">
-        <button class="map-btn" @click="resetZoom">重置缩放</button>
-        <label class="show-label">
-          <input type="checkbox" v-model="showTripLines" /> 行程路线
-        </label>
-        <label class="show-label">
-          <input type="checkbox" v-model="showPlaceMarkers" /> 地点标记
-        </label>
-      </div>
+  <div class="map-root">
+    <div class="map-bar">
+      <label class="bar-chk"><input v-model="showRoutes" type="checkbox" /><span>行程路线</span></label>
+      <label class="bar-chk"><input v-model="showDots" type="checkbox" /><span>地点热点</span></label>
+      <span class="bar-info">{{ props.trips.length }} 条行程 · {{ routeCount }} 条路线</span>
+      <button class="bar-btn" @click="resetZoom">重置视图</button>
     </div>
 
-    <div ref="mapWrap" class="map-svg-wrap">
-      <svg ref="svgEl" class="map-svg">
-        <g ref="rootG">
-          <g ref="featuresG" class="features-layer" />
-          <g ref="tripsG"    class="trips-layer" />
-          <g ref="placesG"   class="places-layer" />
-        </g>
-      </svg>
+    <div ref="wrapEl" class="map-wrap">
+      <svg ref="svgEl" class="map-svg" />
+      <canvas ref="canvasEl" class="map-canvas" />
 
-      <!-- 图例 -->
-      <div class="map-legend">
-        <div class="legend-title">区域类型</div>
-        <div v-for="item in zoneLegend" :key="item.label" class="legend-row">
-          <span class="legend-swatch" :style="{ background: item.fill, border: `1px solid ${item.stroke}` }" />
-          {{ item.label }}
+      <div class="legend-box">
+        <div v-for="it in GEO_LEGEND" :key="it.label" class="leg-row">
+          <span class="leg-sw" :style="{ background: it.fill }" />{{ it.label }}
         </div>
       </div>
 
-      <!-- 悬停 Tooltip -->
-      <div v-if="tooltip.show" class="map-tooltip"
-        :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }">
-        <div class="tt-name">{{ tooltip.name }}</div>
-        <div class="tt-row" v-if="tooltip.kind">类型：{{ tooltip.kind }}</div>
-        <div class="tt-row" v-if="tooltip.activity">活动：{{ tooltip.activity }}</div>
-        <div class="tt-row" v-if="tooltip.trips">行程数：{{ tooltip.trips }}</div>
-      </div>
+      <div v-if="mapState === 'loading'" class="map-mask">加载地图…</div>
+      <div v-if="mapState === 'error'" class="map-mask map-err">{{ errMsg }}</div>
     </div>
 
-    <div v-if="loading" class="map-loading">
-      <div class="spinner" /> 加载地图数据中...
-    </div>
-    <div v-if="error" class="map-error">{{ error }}</div>
+    <Teleport to="body">
+      <div v-show="tt.show" class="map-tt" :style="{ left: tt.x + 'px', top: tt.y + 'px' }">
+        <div class="tt-name">{{ tt.name }}</div>
+        <div v-if="tt.kind" class="tt-sub">{{ tt.kind }}</div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
+<script lang="ts">
+import { defineComponent } from 'vue'
+export default defineComponent({ name: 'OceanusMap' })
+</script>
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import { ref, reactive, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import * as d3 from 'd3'
 import type { TripRecord, PlaceNode } from '../../types'
 import { DATASET_COLORS } from '../../types'
-import { uselinkingStore } from '../../stores/linkingStore'
 
 const props = defineProps<{
-  trips:  TripRecord[]
+  trips: TripRecord[]
   places: PlaceNode[]
 }>()
 
-const emit = defineEmits<{ (e: 'place-click', placeId: string): void }>()
-
-const linking = uselinkingStore()
-
-const mapWrap  = ref<HTMLDivElement>()
-const svgEl    = ref<SVGSVGElement>()
-const rootG    = ref<SVGGElement>()
-const featuresG = ref<SVGGElement>()
-const tripsG   = ref<SVGGElement>()
-const placesG  = ref<SVGGElement>()
-
-const loading  = ref(false)
-const error    = ref('')
-const showTripLines    = ref(true)
-const showPlaceMarkers = ref(true)
-
-let geoData: any = null
-let projection: d3.GeoProjection | null = null
-let pathGen: d3.GeoPath | null = null
-let zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null
-
-const tooltip = ref({ show: false, x: 0, y: 0, name: '', kind: '', activity: '', trips: 0 })
-
-// ── 颜色方案 ──────────────────────────────────────────────
-const ZONE_FILL: Record<string, string> = {
-  Island:              '#dbeafe',
-  'Fishing Ground':    '#fef3c7',
-  'Ecological Preserve': '#d1fae5',
-  Port:                '#f3e8ff',
-  City:                '#fce7f3',
-  default:             '#e2e8f0',
+// 简洁浅色地图风格（与 BAIT 深蓝不同，但同样清晰）
+const OCEAN = '#c5dce8'
+const FEAT_STYLE: Record<string, { fill: string; stroke: string }> = {
+  Island:               { fill: '#e8d5a8', stroke: '#b8956a' },
+  'Fishing Ground':     { fill: '#8fbf9f', stroke: '#5a8f6e' },
+  'Ecological Preserve':{ fill: '#a8d4b4', stroke: '#6a9f7a' },
+  Port:                 { fill: '#f0a060', stroke: '#c07030' },
+  City:                 { fill: '#e8a0a8', stroke: '#b06070' },
+  default:              { fill: '#b0c4d0', stroke: '#8090a0' },
 }
-const ZONE_STROKE: Record<string, string> = {
-  Island:              '#93c5fd',
-  'Fishing Ground':    '#fcd34d',
-  'Ecological Preserve': '#6ee7b7',
-  Port:                '#c4b5fd',
-  City:                '#f9a8d4',
-  default:             '#cbd5e1',
-}
-
-const zoneLegend = [
-  { label: '岛屿',     fill: ZONE_FILL.Island,              stroke: ZONE_STROKE.Island },
-  { label: '渔场',     fill: ZONE_FILL['Fishing Ground'],   stroke: ZONE_STROKE['Fishing Ground'] },
-  { label: '生态保护区', fill: ZONE_FILL['Ecological Preserve'], stroke: ZONE_STROKE['Ecological Preserve'] },
-  { label: '港口',     fill: ZONE_FILL.Port,                stroke: ZONE_STROKE.Port },
+const GEO_LEGEND = [
+  { label: '岛屿', fill: FEAT_STYLE.Island.fill },
+  { label: '渔场', fill: FEAT_STYLE['Fishing Ground'].fill },
+  { label: '生态保护区', fill: FEAT_STYLE['Ecological Preserve'].fill },
+  { label: '港口', fill: FEAT_STYLE.Port.fill },
+  { label: '城市', fill: FEAT_STYLE.City.fill },
 ]
 
-// ── 加载 GeoJSON ─────────────────────────────────────────
-async function loadGeoJSON() {
-  loading.value = true
-  error.value   = ''
+const wrapEl   = ref<HTMLDivElement>()
+const svgEl    = ref<SVGSVGElement>()
+const canvasEl = ref<HTMLCanvasElement>()
+const tt = reactive({ show: false, x: 0, y: 0, name: '', kind: '' })
+const mapState = ref<'idle' | 'loading' | 'ready' | 'error'>('idle')
+const errMsg   = ref('')
+const showRoutes = ref(true)
+const showDots   = ref(true)
+const routeCount = ref(0)
+
+let geoData: GeoJSON.FeatureCollection | null = null
+let projection: d3.GeoProjection | null = null
+let pathGen: d3.GeoPath | null = null
+let zoom: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null
+let currentTransform = d3.zoomIdentity
+let baseReady = false
+let canvasW = 0
+let canvasH = 0
+
+// 地点坐标缓存 id → [x,y]
+const placeCoords = new Map<string, [number, number]>()
+interface RouteLine { pts: [number, number][]; color: string; count: number }
+let routes: RouteLine[] = []
+
+function getSize() {
+  return { W: wrapEl.value?.clientWidth || 700, H: wrapEl.value?.clientHeight || 400 }
+}
+
+function placeKey(id: string | number) { return String(id) }
+
+function coordFromPlace(p: { id: string | number; lat?: number | null; lon?: number | null }): [number, number] | null {
+  const cached = placeCoords.get(placeKey(p.id))
+  if (cached) return cached
+  if (p.lat != null && p.lon != null && projection) {
+    const c = projection([p.lon, p.lat])
+    if (c) return c as [number, number]
+  }
+  return null
+}
+
+async function loadGeo(): Promise<boolean> {
+  if (geoData) return true
   try {
-    const resp = await fetch('/oceanus_map.geojson')
-    if (!resp.ok) throw new Error(`GeoJSON 加载失败：HTTP ${resp.status}`)
-    geoData = await resp.json()
-  } catch (e: any) {
-    error.value = e.message
-  } finally {
-    loading.value = false
+    const res = await fetch('/oceanus_map.geojson')
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    geoData = await res.json()
+    return true
+  } catch (e: unknown) {
+    errMsg.value = '地图加载失败：' + (e instanceof Error ? e.message : String(e))
+    mapState.value = 'error'
+    return false
   }
 }
 
-// ── 构建投影 ─────────────────────────────────────────────
 function buildProjection(W: number, H: number) {
   if (!geoData) return
-  // 使用 geoIdentity + fitSize 适应 GeoJSON 坐标范围
   projection = d3.geoIdentity().reflectY(true)
+  projection.fitSize([W * 0.92, H * 0.92], geoData)
   pathGen = d3.geoPath().projection(projection)
-  ;(projection as any).fitSize([W, H], geoData)
-}
 
-// ── 渲染地图要素 ─────────────────────────────────────────
-function renderFeatures() {
-  if (!geoData || !pathGen) return
-
-  const sel = d3.select(featuresG.value!)
-    .selectAll<SVGPathElement, any>('path')
-    .data(geoData.features)
-
-  sel.enter().append('path')
-    .merge(sel as any)
-    .attr('d', (d: any) => pathGen!(d) ?? '')
-    .attr('fill', (d: any) => {
-      const kind = d.properties?.Kind || 'default'
-      return ZONE_FILL[kind] ?? ZONE_FILL.default
-    })
-    .attr('stroke', (d: any) => {
-      const kind = d.properties?.Kind || 'default'
-      return ZONE_STROKE[kind] ?? ZONE_STROKE.default
-    })
-    .attr('stroke-width', 1)
-    .style('cursor', 'pointer')
-    .on('mouseenter', (event, d: any) => {
-      const props_ = d.properties || {}
-      tooltip.value = {
-        show: true,
-        x: event.offsetX + 12,
-        y: event.offsetY - 8,
-        name: props_.Name || '未知区域',
-        kind: props_.Kind || '',
-        activity: props_.Activities || '',
-        trips: 0,
-      }
-      d3.select(event.currentTarget).attr('stroke-width', 2.5)
-    })
-    .on('mousemove', event => {
-      tooltip.value.x = event.offsetX + 12
-      tooltip.value.y = event.offsetY - 8
-    })
-    .on('mouseleave', event => {
-      tooltip.value.show = false
-      d3.select(event.currentTarget).attr('stroke-width', 1)
-    })
-
-  sel.exit().remove()
-}
-
-// ── 渲染行程路线（聚合 → 宽度映射） ──────────────────────
-function renderTripLines() {
-  const g = d3.select(tripsG.value!)
-  g.selectAll('*').remove()
-  if (!showTripLines.value || !pathGen || !projection) return
-
-  // 计算地点访问频次
-  const countMap = new Map<string, number>()
-  props.trips.forEach(trip => {
-    trip.places?.forEach(p => {
-      countMap.set(p.id, (countMap.get(p.id) || 0) + 1)
-    })
-  })
-
-  // 过滤有坐标的地点并绘制路径
-  const placeMap = new Map(props.places.map(p => [p.id, p]))
-
-  props.trips.forEach(trip => {
-    const validPlaces = (trip.places || [])
-      .map(p => placeMap.get(p.id))
-      .filter(p => p && p.lat != null && p.lon != null) as PlaceNode[]
-
-    if (validPlaces.length < 2) return
-
-    const member = trip.person
-    const isHighlighted = linking.selectedMember
-      ? member === linking.selectedMember
-      : linking.hoveredMember
-        ? member === linking.hoveredMember
-        : true
-
-    const ds   = (trip.dataset || 'journalist') as keyof typeof DATASET_COLORS
-    const color = DATASET_COLORS[ds] || '#94a3b8'
-
-    const line = d3.line<PlaceNode>()
-      .x(p => (projection!([p.lon!, p.lat!]) ?? [0, 0])[0])
-      .y(p => (projection!([p.lon!, p.lat!]) ?? [0, 0])[1])
-      .curve(d3.curveCatmullRom)
-
-    g.append('path')
-      .datum(validPlaces)
-      .attr('d', line)
-      .attr('fill', 'none')
-      .attr('stroke', color)
-      .attr('stroke-width', isHighlighted ? 1.8 : 0.7)
-      .attr('stroke-opacity', isHighlighted ? 0.7 : 0.2)
-      .attr('stroke-dasharray', isHighlighted ? 'none' : '4,3')
+  placeCoords.clear()
+  props.places.forEach(p => {
+    if (p.lat != null && p.lon != null) {
+      const c = projection!([p.lon, p.lat])
+      if (c) placeCoords.set(placeKey(p.id), c as [number, number])
+    }
   })
 }
 
-// ── 渲染地点标记 ─────────────────────────────────────────
-function renderPlaces() {
-  const g = d3.select(placesG.value!)
-  g.selectAll('*').remove()
-  if (!showPlaceMarkers.value || !projection) return
+function drawBaseMap(W: number, H: number, fullRedraw = false) {
+  if (!geoData || !pathGen || !svgEl.value) return
+  const svg = d3.select(svgEl.value)
 
-  const tripCountMap = new Map<string, number>()
-  props.trips.forEach(trip => {
-    trip.places?.forEach(p => {
-      tripCountMap.set(p.id, (tripCountMap.get(p.id) || 0) + 1)
-    })
-  })
+  if (fullRedraw) {
+    svg.selectAll('*').remove()
+    svg.attr('width', W).attr('height', H).style('background', OCEAN)
 
-  const validPlaces = props.places.filter(p => p.lat != null && p.lon != null)
-  const rScale = d3.scaleSqrt()
-    .domain([0, d3.max(Array.from(tripCountMap.values())) || 1])
-    .range([3, 12])
+    const zoomG = svg.append('g').attr('class', 'zoom-g')
+    zoomG.selectAll<SVGPathElement, GeoJSON.Feature>('path.feat')
+      .data(geoData.features)
+      .join('path')
+      .attr('class', 'feat')
+      .attr('d', d => pathGen!(d) ?? '')
+      .each(function (d) {
+        const kind = (d.properties as Record<string, string>)?.Kind ?? 'default'
+        const s = FEAT_STYLE[kind] ?? FEAT_STYLE.default
+        d3.select(this).attr('fill', s.fill).attr('stroke', s.stroke).attr('stroke-width', 0.8)
+      })
+      .on('mouseenter', (ev, d) => {
+        const p = (d.properties ?? {}) as Record<string, string>
+        tt.show = true; tt.name = p.Name ?? ''; tt.kind = p.Kind ?? ''
+        tt.x = ev.clientX + 12; tt.y = ev.clientY - 10
+        d3.select(ev.currentTarget as Element).attr('stroke-width', 2)
+      })
+      .on('mousemove', ev => { tt.x = ev.clientX + 12; tt.y = ev.clientY - 10 })
+      .on('mouseleave', (ev, d) => {
+        tt.show = false
+        const kind = ((d.properties ?? {}) as Record<string, string>).Kind ?? 'default'
+        d3.select(ev.currentTarget as Element)
+          .attr('stroke-width', (FEAT_STYLE[kind] ?? FEAT_STYLE.default).stroke ? 0.8 : 0.8)
+      })
 
-  const groups = g.selectAll<SVGGElement, PlaceNode>('g.place')
-    .data(validPlaces, d => d.id)
-    .enter().append('g').attr('class', 'place')
-    .attr('transform', d => {
-      const [x, y] = projection!([d.lon!, d.lat!]) ?? [0, 0]
-      return `translate(${x},${y})`
-    })
-    .style('cursor', 'pointer')
-    .on('click', (_, d) => emit('place-click', d.id))
-    .on('mouseenter', (event, d) => {
-      const cnt = tripCountMap.get(d.id) || 0
-      tooltip.value = {
-        show: true,
-        x: event.offsetX + 12,
-        y: event.offsetY - 8,
-        name: d.name || d.id,
-        kind: d.zone || '',
-        activity: '',
-        trips: cnt,
-      }
-    })
-    .on('mousemove', event => {
-      tooltip.value.x = event.offsetX + 12
-      tooltip.value.y = event.offsetY - 8
-    })
-    .on('mouseleave', () => { tooltip.value.show = false })
-
-  groups.append('circle')
-    .attr('r', d => rScale(tripCountMap.get(d.id) || 0))
-    .attr('fill', '#2563eb')
-    .attr('fill-opacity', 0.7)
-    .attr('stroke', '#fff')
-    .attr('stroke-width', 1.5)
-
-  groups.append('title').text(d => d.name || d.id)
+    if (!zoom) {
+      zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.5, 8])
+        .on('zoom', ev => {
+          currentTransform = ev.transform
+          svg.select('.zoom-g').attr('transform', ev.transform.toString())
+          scheduleOverlay()
+        })
+      svg.call(zoom)
+    }
+    zoomG.attr('transform', currentTransform.toString())
+  } else {
+    svg.attr('width', W).attr('height', H)
+    svg.select('.zoom-g').selectAll<SVGPathElement, GeoJSON.Feature>('path.feat')
+      .attr('d', d => pathGen!(d) ?? '')
+  }
 }
 
-// ── 绑定 Zoom ────────────────────────────────────────────
-function bindZoom(W: number, H: number) {
-  if (zoomBehavior) return
-  zoomBehavior = d3.zoom<SVGSVGElement, unknown>()
-    .scaleExtent([0.5, 8])
-    .on('zoom', ev => {
-      d3.select(rootG.value!).attr('transform', ev.transform)
+function buildRoutes() {
+  const map = new Map<string, RouteLine>()
+  props.trips.forEach(trip => {
+    const pts = (trip.places ?? [])
+      .map(p => coordFromPlace(p))
+      .filter((c): c is [number, number] => c !== null)
+    if (pts.length < 2) return
+    const key = pts.map(c => `${c[0].toFixed(0)},${c[1].toFixed(0)}`).join('|')
+    const color = DATASET_COLORS[trip.dataset] ?? '#64748b'
+    const existing = map.get(key)
+    if (existing) existing.count++
+    else map.set(key, { pts, color, count: 1 })
+  })
+  routes = Array.from(map.values())
+  routeCount.value = routes.length
+}
+
+let rafId = 0
+function scheduleOverlay() {
+  cancelAnimationFrame(rafId)
+  rafId = requestAnimationFrame(drawOverlay)
+}
+
+function drawOverlay() {
+  const canvas = canvasEl.value
+  if (!canvas || !baseReady) return
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  const { W, H } = getSize()
+  if (W !== canvasW || H !== canvasH) {
+    canvasW = W; canvasH = H
+    canvas.width = W; canvas.height = H
+  }
+
+  ctx.clearRect(0, 0, W, H)
+  const t = currentTransform
+  ctx.save()
+  ctx.translate(t.x, t.y)
+  ctx.scale(t.k, t.k)
+
+  if (showRoutes.value && routes.length) {
+    const maxCnt = Math.max(...routes.map(r => r.count), 1)
+    const wScale = d3.scaleSqrt().domain([1, maxCnt]).range([1 / t.k, 3 / t.k])
+    routes.forEach(r => {
+      ctx.beginPath()
+      ctx.moveTo(r.pts[0][0], r.pts[0][1])
+      for (let i = 1; i < r.pts.length; i++) ctx.lineTo(r.pts[i][0], r.pts[i][1])
+      ctx.strokeStyle = r.color
+      ctx.globalAlpha = 0.75
+      ctx.lineWidth = wScale(r.count)
+      ctx.stroke()
     })
-  d3.select(svgEl.value!).call(zoomBehavior)
+    ctx.globalAlpha = 1
+  }
+
+  if (showDots.value) {
+    const tripCnt = new Map<string, number>()
+    props.trips.forEach(trip =>
+      (trip.places ?? []).forEach(p => {
+        const k = placeKey(p.id)
+        tripCnt.set(k, (tripCnt.get(k) ?? 0) + 1)
+      }),
+    )
+    const maxR = Math.max(...Array.from(tripCnt.values()), 1)
+    const rScale = d3.scaleSqrt().domain([0, maxR]).range([2 / t.k, 6 / t.k])
+    placeCoords.forEach((coord, pid) => {
+      const cnt = tripCnt.get(pid) ?? 0
+      if (cnt === 0) return
+      ctx.beginPath()
+      ctx.arc(coord[0], coord[1], rScale(cnt), 0, Math.PI * 2)
+      ctx.fillStyle = '#fff'
+      ctx.fill()
+      ctx.strokeStyle = '#e11d48'
+      ctx.lineWidth = 1.2 / t.k
+      ctx.stroke()
+    })
+  }
+
+  ctx.restore()
+}
+
+function refreshOverlay() {
+  buildRoutes()
+  scheduleOverlay()
+}
+
+async function init() {
+  mapState.value = 'loading'
+  const ok = await loadGeo()
+  if (!ok) return
+  await nextTick()
+  const { W, H } = getSize()
+  buildProjection(W, H)
+  drawBaseMap(W, H, true)
+  refreshOverlay()
+  baseReady = true
+  mapState.value = 'ready'
 }
 
 function resetZoom() {
-  if (!svgEl.value || !zoomBehavior) return
-  d3.select(svgEl.value)
-    .transition().duration(400)
-    .call(zoomBehavior.transform, d3.zoomIdentity)
+  if (!svgEl.value || !zoom) return
+  d3.select(svgEl.value).transition().duration(300).call(zoom.transform, d3.zoomIdentity)
 }
 
-// ── 主渲染入口 ───────────────────────────────────────────
-async function renderAll() {
-  await nextTick()
-  if (!mapWrap.value || !svgEl.value) return
-  const W = mapWrap.value.clientWidth  || 700
-  const H = mapWrap.value.clientHeight || 420
+let resizeTimer = 0
+let tripSig = ''
 
-  d3.select(svgEl.value).attr('width', W).attr('height', H)
-
-  if (!geoData) await loadGeoJSON()
-  if (!geoData) return
-
-  buildProjection(W, H)
-  bindZoom(W, H)
-  renderFeatures()
-  renderTripLines()
-  renderPlaces()
+function tripSignature(trips: TripRecord[]) {
+  return `${trips.length}:${trips[0]?.trip_id ?? ''}:${trips[trips.length - 1]?.trip_id ?? ''}`
 }
 
-// ── resize ────────────────────────────────────────────────
-let resizeObs: ResizeObserver | null = null
-
+let ro: ResizeObserver | null = null
 onMounted(async () => {
-  await renderAll()
-  resizeObs = new ResizeObserver(() => renderAll())
-  if (mapWrap.value) resizeObs.observe(mapWrap.value)
+  await nextTick()
+  requestAnimationFrame(() => init())
+  tripSig = tripSignature(props.trips)
+
+  ro = new ResizeObserver(() => {
+    clearTimeout(resizeTimer)
+    resizeTimer = window.setTimeout(() => {
+      if (!baseReady) return
+      const { W, H } = getSize()
+      buildProjection(W, H)
+      drawBaseMap(W, H, false)
+      scheduleOverlay()
+    }, 200)
+  })
+  if (wrapEl.value) ro.observe(wrapEl.value)
 })
 
-onUnmounted(() => { resizeObs?.disconnect() })
+onUnmounted(() => {
+  ro?.disconnect()
+  cancelAnimationFrame(rafId)
+  clearTimeout(resizeTimer)
+})
 
-watch([() => props.trips, () => props.places, showTripLines, showPlaceMarkers], renderTripLines)
-watch(() => linking.selectedMember, renderTripLines)
-watch(() => linking.hoveredMember,  renderTripLines)
+watch(() => props.trips, (trips) => {
+  if (!baseReady) return
+  const sig = tripSignature(trips)
+  if (sig === tripSig) return
+  tripSig = sig
+  refreshOverlay()
+})
+
+watch([showRoutes, showDots], () => {
+  if (baseReady) scheduleOverlay()
+})
 </script>
 
 <style scoped>
-.map-wrap { position: relative; width: 100%; display: flex; flex-direction: column; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
-
-.map-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 14px; border-bottom: 1px solid #f1f5f9; background: #f8fafc; flex-shrink: 0;
+.map-root {
+  display: flex; flex-direction: column;
+  border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; background: #fff;
 }
-.map-title { font-size: 13px; font-weight: 600; color: #1e293b; }
-.map-controls { display: flex; align-items: center; gap: 12px; }
-.map-btn {
-  padding: 3px 8px; border-radius: 4px; border: 1px solid #e2e8f0;
-  background: #fff; font-size: 11px; cursor: pointer; color: #64748b;
+.map-bar {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 8px 14px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;
 }
-.map-btn:hover { background: #f1f5f9; }
-.show-label { font-size: 11px; color: #64748b; display: flex; align-items: center; gap: 4px; cursor: pointer; }
-
-.map-svg-wrap {
-  position: relative; width: 100%; height: 440px;
-  background: linear-gradient(150deg, #e0f2fe 0%, #f0fdf4 100%);
-  overflow: hidden;
+.bar-chk {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 12px; color: #64748b; cursor: pointer; user-select: none;
 }
-.map-svg { width: 100%; height: 100%; display: block; }
-
-.map-legend {
-  position: absolute; bottom: 14px; right: 14px;
+.bar-info { font-size: 11px; color: #94a3b8; margin-left: auto; }
+.bar-btn {
+  font-size: 11px; padding: 4px 10px; border-radius: 5px;
+  border: 1px solid #e2e8f0; background: #fff; color: #64748b; cursor: pointer;
+}
+.bar-btn:hover { background: #f1f5f9; }
+.map-wrap { position: relative; flex: 1; min-height: 400px; overflow: hidden; }
+.map-svg, .map-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.map-canvas { pointer-events: none; }
+.legend-box {
+  position: absolute; bottom: 10px; right: 10px;
   background: rgba(255,255,255,0.92); border: 1px solid #e2e8f0;
-  border-radius: 8px; padding: 8px 10px; font-size: 11px;
-  box-shadow: 0 2px 8px rgba(0,0,0,.07);
+  border-radius: 6px; padding: 8px 10px; font-size: 10px; color: #475569;
 }
-.legend-title { font-weight: 700; color: #374151; margin-bottom: 5px; font-size: 10px; }
-.legend-row { display: flex; align-items: center; gap: 6px; color: #475569; margin-top: 3px; }
-.legend-swatch { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
-
-.map-tooltip {
-  position: absolute; pointer-events: none; z-index: 10;
-  background: rgba(255,255,255,0.96); border: 1px solid #e2e8f0;
-  border-radius: 8px; padding: 8px 11px; font-size: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,.1); max-width: 200px;
-}
-.tt-name { font-weight: 700; color: #1e293b; margin-bottom: 3px; }
-.tt-row  { color: #64748b; font-size: 11px; margin-top: 2px; }
-
-.map-loading, .map-error {
+.leg-row { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+.leg-row:first-child { margin-top: 0; }
+.leg-sw { width: 12px; height: 9px; border-radius: 2px; border: 1px solid rgba(0,0,0,0.1); }
+.map-mask {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  font-size: 13px; color: #64748b; background: rgba(248,250,252,0.9); gap: 8px;
+  background: rgba(255,255,255,0.7); font-size: 13px; color: #64748b;
 }
-.map-error { color: #dc2626; }
+.map-err { color: #dc2626; }
+.map-tt {
+  position: fixed; pointer-events: none; z-index: 9999;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 6px;
+  padding: 6px 10px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.12);
+}
+.tt-name { font-weight: 700; color: #1e293b; }
+.tt-sub  { font-size: 10px; color: #94a3b8; margin-top: 2px; }
 </style>

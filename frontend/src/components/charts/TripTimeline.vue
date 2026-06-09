@@ -14,6 +14,10 @@
   </div>
 </template>
 
+<script lang="ts">
+import { defineComponent } from 'vue'
+export default defineComponent({ name: 'TripTimeline' })
+</script>
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import * as d3 from 'd3'
@@ -36,6 +40,17 @@ const svgEl = ref<SVGSVGElement>()
 const tooltip = ref({ show: false, x: 0, y: 0, person: '', date: '', places: '', dataset: '' })
 
 let resizeObs: ResizeObserver | null = null
+let drawTimer = 0
+
+/** 将 0040 等异常年份修正为 2040 */
+function parseTripDate(raw: string): Date | null {
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!m) return null
+  let year = parseInt(m[1], 10)
+  if (year < 1900) year += 2000
+  const d = new Date(year, parseInt(m[2], 10) - 1, parseInt(m[3], 10))
+  return isNaN(d.getTime()) ? null : d
+}
 
 function draw() {
   if (!el.value || !svgEl.value || !props.trips.length) return
@@ -56,7 +71,7 @@ function draw() {
   const innerW = containerW - margin.left - margin.right
 
   // 时间域
-  const dates = props.trips.map(t => new Date(t.date)).filter(d => !isNaN(d.getTime()))
+  const dates = props.trips.map(t => parseTripDate(t.date)).filter((d): d is Date => d !== null)
   if (!dates.length) return
   const minDate = d3.min(dates)!
   const maxDate = d3.max(dates)!
@@ -114,8 +129,8 @@ function draw() {
   props.trips.forEach(trip => {
     const mIdx = members.indexOf(trip.person as any)
     if (mIdx < 0) return
-    const date = new Date(trip.date)
-    if (isNaN(date.getTime())) return
+    const date = parseTripDate(trip.date)
+    if (!date) return
 
     const x = xScale(date)
     const y = mIdx * rowH + rowH / 2
@@ -177,12 +192,17 @@ onMounted(async () => {
   if (el.value) resizeObs.observe(el.value)
 })
 
-onUnmounted(() => resizeObs?.disconnect())
+onUnmounted(() => { resizeObs?.disconnect(); clearTimeout(drawTimer) })
 
-watch([() => props.trips, () => props.selectedMember, () => props.hoveredTrip], async () => {
-  await nextTick()
-  draw()
-})
+function scheduleDraw() {
+  clearTimeout(drawTimer)
+  drawTimer = window.setTimeout(async () => {
+    await nextTick()
+    draw()
+  }, 80)
+}
+
+watch([() => props.trips, () => props.selectedMember, () => props.hoveredTrip], scheduleDraw)
 </script>
 
 <style scoped>

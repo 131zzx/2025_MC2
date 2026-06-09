@@ -1,4 +1,4 @@
-<!--
+﻿<!--
   成员 x 数据集覆盖矩阵
   绿色 = 全量覆盖, 黄色 = 部分, 红色 = 缺失
 -->
@@ -47,6 +47,9 @@
   </div>
 </template>
 
+<script lang="ts">
+export default {}
+</script>
 <script setup lang="ts">
 import type { CoverageItem, MemberActivityItem } from '../../types'
 import { COMMITTEE_MEMBERS } from '../../types'

@@ -1,10 +1,13 @@
-<!--
+﻿<!--
   单个成员在记者数据集中各行业的情感均值（横向条形图）
 -->
 <template>
   <div ref="el" class="d3-chart" />
 </template>
 
+<script lang="ts">
+export default {}
+</script>
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import * as d3 from 'd3'
