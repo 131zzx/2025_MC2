@@ -1,4 +1,4 @@
-﻿<!--
+<!--
   成员 x 数据集覆盖矩阵
   绿色 = 全量覆盖, 黄色 = 部分, 红色 = 缺失
 -->
@@ -106,6 +106,12 @@ function getCellClass(member: string, ds: string): string {
 }
 
 function getJoTotal(member: string): number {
+  // 1. 尝试从 coverageData 中获取
+  const covItems = coverageData().filter(d => d.member === member)
+  if (covItems.length > 0) {
+    return covItems[0].jo_activity_cnt
+  }
+  // 2. 备选方案：从 activityData 获取
   const act = activityData().find(d => d.member === member && d.dataset === 'journalist')
   return act?.total_activity ?? 0
 }
@@ -123,48 +129,48 @@ function onMemberClick(member: string) {
 }
 
 .matrix-table th {
-  padding: 8px 12px; text-align: center; font-size: 11px; font-weight: 700;
-  letter-spacing: .04em; color: #64748b;
+  padding: 8px 4px; text-align: center; font-size: 10px; font-weight: 700;
+  letter-spacing: .02em; color: #64748b;
   border-bottom: 2px solid #e2e8f0; white-space: nowrap;
 }
-.member-col { text-align: left; width: 160px; }
-.jo-col     { color: #059669; }
-.sub        { font-size: 9px; font-weight: 400; color: #94a3b8; }
+.member-col { text-align: left; width: 100px; padding-left: 8px !important; }
+.jo-col     { color: #059669; width: 60px; }
+.sub        { font-size: 8px; font-weight: 400; color: #94a3b8; display: block; line-height: 1.2; }
 
-.ds-col--filah { color: #d97706; }
-.ds-col--trout { color: #2563eb; }
+.ds-col--filah { color: #d97706; width: 70px; }
+.ds-col--trout { color: #2563eb; width: 70px; }
 
 .matrix-table td {
-  padding: 6px 10px; border-bottom: 1px solid #f1f5f9;
+  padding: 8px 4px; border-bottom: 1px solid #f1f5f9; vertical-align: middle;
 }
 .row--clickable { cursor: pointer; transition: background .12s; }
 .row--clickable:hover { background: #f8fafc; }
-.row--selected { background: #eff6ff !important; }
+.row--selected { background: #f0f9ff !important; }
 .member-name {
-  color: #1e293b; font-weight: 600; font-size: 12px; padding-left: 4px;
+  color: #1e293b; font-weight: 600; font-size: 13px; padding-left: 8px;
 }
 .name--selected { color: #2563eb; font-weight: 700; }
 
 .cell { text-align: center; }
 .cell-inner {
-  display: inline-flex; flex-direction: column; align-items: center;
-  padding: 6px 12px; border-radius: 8px; min-width: 64px;
-  cursor: default; transition: transform .15s;
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 4px 0; border-radius: 6px; width: 54px; height: 38px;
+  cursor: default; transition: transform .15s; margin: 0 auto;
 }
 .cell-inner:hover { transform: scale(1.05); }
 
-.cell--full    { background: #f0fdf4; color: #15803d; }
-.cell--partial { background: #fffbeb; color: #b45309; }
-.cell--zero    { background: #fef2f2; color: #b91c1c; }
+.cell--full    { background: #ecfdf5; color: #059669; border: 1px solid #d1fae5; }
+.cell--partial { background: #fffbeb; color: #d97706; border: 1px solid #fef3c7; }
+.cell--zero    { background: #fef2f2; color: #dc2626; border: 1px solid #fee2e2; }
 
-.cell-icon { font-size: 14px; line-height: 1; }
-.cell-pct  { font-size: 10px; font-weight: 700; margin-top: 2px; }
+.cell-icon { font-size: 14px; line-height: 1; margin-bottom: 1px; }
+.cell-pct  { font-size: 10px; font-weight: 700; }
 
 .jo-cell    { text-align: center; }
-.jo-total   { font-size: 13px; font-weight: 700; color: #059669; }
+.jo-total   { font-size: 12px; font-weight: 700; color: #059669; background: #f0fdf4; padding: 2px 6px; border-radius: 12px; display: inline-block; min-width: 40px; }
 
 .legend {
-  display: flex; gap: 20px; margin-top: 12px; font-size: 11px;
+  display: flex; gap: 8px; margin-top: 12px; font-size: 9px; flex-wrap: wrap;
 }
 .leg { display: flex; align-items: center; gap: 6px; color: #64748b; }
 .leg::before { content: ''; width: 12px; height: 12px; border-radius: 3px; }

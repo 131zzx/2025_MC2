@@ -41,25 +41,27 @@
 
     </div>
 
-    <!-- ══ 第二行：三图并排 ══ -->
-    <div class="row row-mid">
+    <!-- ══ 第二行：覆盖率矩阵 + 情感热图 + 右侧面板 ══ -->
+    <div class="row row-main">
 
       <!-- 覆盖率矩阵（左） -->
-      <div class="card flex-3">
+      <div class="card flex-4">
         <div class="card-hd">
           <span class="card-title">活动<TermExplanation term="覆盖率">覆盖率</TermExplanation></span>
           <span class="card-hint">点击成员行</span>
         </div>
-        <CoverageMatrix
-          :coverage="store.coverage"
-          :member-activity="store.memberActivity"
-          :selected-member="selectedMember ?? undefined"
-          @select-member="onSelect"
-        />
+        <div class="scroll-x-container">
+          <CoverageMatrix
+            :coverage="store.coverage"
+            :member-activity="store.memberActivity"
+            :selected-member="selectedMember ?? undefined"
+            @select-member="onSelect"
+          />
+        </div>
       </div>
 
       <!-- 情感热图（中） -->
-      <div class="card flex-5">
+      <div class="card flex-4">
         <div class="card-hd">
           <span class="card-title"><TermExplanation term="情感">情感</TermExplanation>倾向热图</span>
           <div class="ds-tabs">

@@ -10,6 +10,22 @@
     <div class="card timeline-card">
       <div class="card-hd">
         <span class="card-title"><TermExplanation term="行程">行程</TermExplanation>时间轴</span>
+        
+        <!-- 行程点图例：动态切换 -->
+        <div class="tl-legend">
+          <div class="leg-title">行程点状态：</div>
+          <template v-if="isJournalistActive">
+            <div class="leg-item"><span class="leg-dot" style="background: #064e3b" />多方证实</div>
+            <div class="leg-item"><span class="leg-dot" style="background: #10b981" />单方验证</div>
+            <div class="leg-item"><span class="leg-dot" style="background: #a7f3d0" />仅记者有</div>
+          </template>
+          <template v-else>
+            <div class="leg-item"><span class="leg-dot" :style="{ background: DATASET_COLORS.filah }" />FILAH 独有</div>
+            <div class="leg-item"><span class="leg-dot" :style="{ background: DATASET_COLORS.trout }" />TROUT 独有</div>
+            <div class="leg-item"><span class="leg-dot" style="background: #ef4444" />双方共有</div>
+          </template>
+        </div>
+
         <div class="tl-controls">
           <span class="trip-count">{{ filteredTrips.length }} 条<TermExplanation term="行程">行程</TermExplanation></span>
           <div class="ds-btns">
@@ -27,7 +43,7 @@
         </div>
       </div>
       <TripTimeline
-        :trips="filteredTrips"
+        :trips="timelineTrips"
         :selected-member="selectedMember || undefined"
         @member-click="selectedMember = selectedMember === $event ? '' : $event"
       />
@@ -115,6 +131,37 @@ const filteredTrips = computed<TripRecord[]>(() => {
   return trips
 })
 
+// 检查当前显示的行程是否包含记者
+const isJournalistActive = computed(() => 
+  activeDsSet.has('journalist')
+)
+
+// 为时间轴准备的去重且带证据状态的行程
+const timelineTrips = computed(() => {
+  const allTrips = store.tripRecords
+  // 1. 预计算每个 trip_id 存在于哪些数据集
+  const presenceMap = new Map<string, Set<DatasetKey>>()
+  allTrips.forEach(t => {
+    if (!presenceMap.has(t.trip_id)) presenceMap.set(t.trip_id, new Set())
+    presenceMap.get(t.trip_id)!.add(t.dataset)
+  })
+
+  // 2. 筛选出当前需要显示的行程（去重，每个 ID 只留一个用于定位）
+  const uniqueMap = new Map<string, TripRecord & { presence: Set<DatasetKey>; isJournalistActive: boolean }>()
+  const journalistActive = isJournalistActive.value
+
+  filteredTrips.value.forEach(t => {
+    if (!uniqueMap.has(t.trip_id)) {
+      uniqueMap.set(t.trip_id, {
+        ...t,
+        presence: presenceMap.get(t.trip_id)!,
+        isJournalistActive: journalistActive
+      })
+    }
+  })
+  return Array.from(uniqueMap.values())
+})
+
 const filteredZone = computed(() =>
   store.tripZoneDist.filter(d => isActiveDs(d.dataset))
 )
@@ -156,6 +203,13 @@ function shortName(n: string) {
   display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;
 }
 .card-title { font-size: 13px; font-weight: 700; color: #1e293b; }
+
+.tl-legend {
+  margin-left: 20px; display: flex; align-items: center; gap: 12px;
+}
+.leg-title { font-size: 11px; color: #94a3b8; }
+.leg-item  { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #64748b; }
+.leg-dot   { width: 8px; height: 8px; border-radius: 50%; }
 
 .tl-controls { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
 .trip-count  { font-size: 11px; color: #94a3b8; }

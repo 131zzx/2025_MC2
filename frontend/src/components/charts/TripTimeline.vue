@@ -21,11 +21,11 @@ export default defineComponent({ name: 'TripTimeline' })
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import * as d3 from 'd3'
-import type { TripRecord } from '../../types'
+import type { TripRecord, DatasetKey } from '../../types'
 import { DATASET_COLORS, COMMITTEE_MEMBERS } from '../../types'
 
 const props = defineProps<{
-  trips: TripRecord[]
+  trips: (TripRecord & { presence?: Set<DatasetKey>; isJournalistActive?: boolean })[]
   selectedMember?: string
   hoveredTrip?: string
 }>()
@@ -134,7 +134,26 @@ function draw() {
 
     const x = xScale(date)
     const y = mIdx * rowH + rowH / 2
-    const color = DATASET_COLORS[trip.dataset] || '#94a3b8'
+    
+    // 决定填充颜色：遵循证据一致性逻辑
+    let color = DATASET_COLORS[trip.dataset as keyof typeof DATASET_COLORS] || '#94a3b8'
+    const presence = trip.presence || new Set([trip.dataset])
+    const hasJournalist = presence.has('journalist')
+    const hasFilah = presence.has('filah')
+    const hasTrout = presence.has('trout')
+    const journalistActive = trip.isJournalistActive
+
+    if (hasJournalist && journalistActive) {
+      if (hasFilah && hasTrout) color = '#064e3b' // 多方证实
+      else if (hasFilah || hasTrout) color = '#10b981' // 单方验证
+      else color = '#a7f3d0' // 仅记者有
+    } else {
+      if (hasFilah && hasTrout) color = '#ef4444' // 双方共有
+      else if (hasFilah) color = DATASET_COLORS.filah
+      else if (hasTrout) color = DATASET_COLORS.trout
+      else color = DATASET_COLORS.journalist // 纯记者点
+    }
+    
     const isHighlighted = props.selectedMember
       ? trip.person === props.selectedMember
       : true
@@ -153,8 +172,8 @@ function draw() {
         const placeNames = (trip.places || []).map(p => p.name).join(' → ')
         tooltip.value = {
           show: true,
-          x: event.offsetX + 12,
-          y: event.offsetY - 8,
+          x: event.clientX + 12,
+          y: event.clientY - 8,
           person: trip.person,
           date: trip.date,
           places: placeNames,
@@ -162,8 +181,8 @@ function draw() {
         }
       })
       .on('mousemove', event => {
-        tooltip.value.x = event.offsetX + 12
-        tooltip.value.y = event.offsetY - 8
+        tooltip.value.x = event.clientX + 12
+        tooltip.value.y = event.clientY - 8
       })
       .on('mouseleave', () => {
         emit('trip-hover', null)
@@ -212,7 +231,7 @@ watch([() => props.trips, () => props.selectedMember, () => props.hoveredTrip], 
 }
 .timeline-svg { display: block; }
 .tl-tooltip {
-  position: absolute; pointer-events: none; z-index: 10;
+  position: fixed; pointer-events: none; z-index: 10000;
   background: rgba(255,255,255,0.96); border: 1px solid #e2e8f0;
   border-radius: 8px; padding: 8px 11px; font-size: 12px;
   box-shadow: 0 4px 12px rgba(0,0,0,.1); max-width: 220px;
