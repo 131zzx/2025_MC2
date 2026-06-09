@@ -47,7 +47,7 @@
       <!-- 覆盖率矩阵（左） -->
       <div class="card flex-3">
         <div class="card-hd">
-          <span class="card-title">活动覆盖率</span>
+          <span class="card-title">活动<TermExplanation term="覆盖率">覆盖率</TermExplanation></span>
           <span class="card-hint">点击成员行</span>
         </div>
         <CoverageMatrix
@@ -61,7 +61,7 @@
       <!-- 情感热图（中） -->
       <div class="card flex-5">
         <div class="card-hd">
-          <span class="card-title">情感倾向热图</span>
+          <span class="card-title"><TermExplanation term="情感">情感</TermExplanation>倾向热图</span>
           <div class="ds-tabs">
             <button
               v-for="ds in DS_LIST" :key="ds.key"
@@ -86,7 +86,7 @@
       <div class="card flex-3">
         <template v-if="!selectedMember">
           <div class="card-hd">
-            <span class="card-title">各成员行业情感均值</span>
+            <span class="card-title">各成员行业<TermExplanation term="情感">情感</TermExplanation>均值</span>
             <span class="card-hint">记者数据集</span>
           </div>
           <MemberSentimentSummary :data="store.sentimentAgg" />
@@ -108,7 +108,7 @@
         <!-- 行业情感偏向 -->
         <div class="card flex-3">
           <div class="card-hd">
-            <span class="card-title">行业情感偏向</span>
+            <span class="card-title">行业<TermExplanation term="情感">情感</TermExplanation>偏向</span>
             <span class="card-hint">正 = 支持 · 负 = 反对</span>
           </div>
           <MemberSentimentBar :data="store.sentimentAgg" :member="selectedMember" />
@@ -116,6 +116,9 @@
 
         <!-- 关系网络 -->
         <div class="card flex-7 ego-card">
+          <div class="card-hd" style="padding: 14px 14px 0">
+            <span class="card-title"><TermExplanation term="Ego 网络">关系网络</TermExplanation></span>
+          </div>
           <EgoNetwork :member="selectedMember" :graph-data="store.fullGraph" />
         </div>
 
@@ -139,6 +142,7 @@ import MemberCompareBar        from '../components/charts/MemberCompareBar.vue'
 import MemberSentimentBar      from '../components/charts/MemberSentimentBar.vue'
 import MemberSentimentSummary  from '../components/charts/MemberSentimentSummary.vue'
 import EgoNetwork              from '../components/graph/EgoNetwork.vue'
+import TermExplanation         from '../components/shared/TermExplanation.vue'
 
 const store = useDataStore()
 

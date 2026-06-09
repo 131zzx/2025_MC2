@@ -1,7 +1,12 @@
 <template>
   <div class="summary-wrap">
     <div v-for="item in summaryItems" :key="item.label" class="summary-item">
-      <div class="item-label">{{ item.label }}</div>
+      <div class="item-label">
+        <TermExplanation v-if="item.label.includes('偏见')" term="采样偏见">{{ item.label }}</TermExplanation>
+        <TermExplanation v-else-if="item.label.includes('Trip')" term="行程">{{ item.label }}</TermExplanation>
+        <TermExplanation v-else-if="item.label.includes('议题')" term="议题">{{ item.label }}</TermExplanation>
+        <template v-else>{{ item.label }}</template>
+      </div>
       <div class="item-value" :style="{ color: item.color }">{{ item.value }}</div>
       <div class="item-desc">{{ item.desc }}</div>
     </div>
@@ -11,6 +16,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { NodeTypeCountItem, TopicDistItem, CoverageItem } from '../../types'
+import TermExplanation from './TermExplanation.vue'
 
 const props = defineProps<{
   nodeTypes:  NodeTypeCountItem[]

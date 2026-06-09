@@ -1,7 +1,7 @@
-﻿<template>
+<template>
   <div class="ego-wrap">
     <div class="ego-header">
-      <span class="ego-title">关系网络：{{ member || '（未选中成员）' }}</span>
+      <span class="ego-title"><TermExplanation term="Ego 网络">关系网络</TermExplanation>：{{ member || '（未选中成员）' }}</span>
       <div class="ego-controls">
         <label class="depth-label">深度</label>
         <button
@@ -37,7 +37,7 @@
         <div class="tt-row" v-if="tooltip.type">类型：{{ tooltip.type }}</div>
         <div class="tt-row" v-if="tooltip.industry">行业：{{ tooltip.industry }}</div>
         <div class="tt-row" v-if="tooltip.sentiment != null">
-          情感：{{ tooltip.sentiment > 0 ? '+' : '' }}{{ tooltip.sentiment.toFixed(2) }}
+          <TermExplanation term="情感">情感</TermExplanation>：{{ tooltip.sentiment > 0 ? '+' : '' }}{{ tooltip.sentiment.toFixed(2) }}
         </div>
       </div>
     </div>
@@ -64,6 +64,7 @@ import {
   ref, watch, onMounted, onUnmounted, nextTick, computed,
 } from 'vue'
 import * as d3 from 'd3'
+import TermExplanation from '../shared/TermExplanation.vue'
 
 const props = defineProps<{
   member: string

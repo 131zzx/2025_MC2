@@ -9,9 +9,9 @@
     <!-- 时间轴（全宽） -->
     <div class="card timeline-card">
       <div class="card-hd">
-        <span class="card-title">行程时间轴</span>
+        <span class="card-title"><TermExplanation term="行程">行程</TermExplanation>时间轴</span>
         <div class="tl-controls">
-          <span class="trip-count">{{ filteredTrips.length }} 条行程</span>
+          <span class="trip-count">{{ filteredTrips.length }} 条<TermExplanation term="行程">行程</TermExplanation></span>
           <div class="ds-btns">
             <button
               v-for="ds in DS_LIST" :key="ds.key"
@@ -37,14 +37,14 @@
     <div class="stats-row">
       <div class="card stats-card">
         <div class="card-hd">
-          <span class="card-title">行程区域分布</span>
+          <span class="card-title"><TermExplanation term="行程">行程</TermExplanation>区域分布</span>
         </div>
         <TripZoneChart :data="filteredZone" />
       </div>
 
       <div class="card stats-card">
         <div class="card-hd">
-          <span class="card-title">各成员行程数量</span>
+          <span class="card-title">各成员<TermExplanation term="行程">行程</TermExplanation>数量</span>
         </div>
         <div class="member-stat-list">
           <div
@@ -88,6 +88,7 @@ import type { DatasetKey, TripRecord } from '../types'
 import OceanusMap    from '../components/map/OceanusMap.vue'
 import TripTimeline  from '../components/charts/TripTimeline.vue'
 import TripZoneChart from '../components/charts/TripZoneChart.vue'
+import TermExplanation from '../components/shared/TermExplanation.vue'
 
 const store = useDataStore()
 

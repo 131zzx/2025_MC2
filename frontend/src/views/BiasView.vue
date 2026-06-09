@@ -12,11 +12,14 @@
         <div class="kpi-metrics">
           <div v-for="m in getMetrics(ds.key)" :key="m.label" class="kpi-m">
             <div class="kpi-val">{{ m.val }}</div>
-            <div class="kpi-label">{{ m.label }}</div>
+            <div class="kpi-label">
+              <TermExplanation v-if="['节点', '边', '行程'].includes(m.label)" :term="m.label">{{ m.label }}</TermExplanation>
+              <template v-else>{{ m.label }}</template>
+            </div>
           </div>
         </div>
         <div class="kpi-bias" :style="{ color: getBiasColor(ds.key) }">
-          偏差指数：{{ formatBias(ds.key) }}
+          <TermExplanation term="偏差指数">偏差指数</TermExplanation>：{{ formatBias(ds.key) }}
         </div>
       </div>
     </div>
@@ -25,7 +28,7 @@
     <div class="row-2">
       <div class="card">
         <div class="card-hd">
-          <span class="card-title">采样偏见指数对比</span>
+          <span class="card-title"><TermExplanation term="采样偏见">采样偏见</TermExplanation>指数对比</span>
           <span class="card-hint">正值偏渔业，负值偏旅游；越偏离中心线越不可靠</span>
         </div>
         <BiasCompareChart :data="store.biasIndex" />
@@ -34,7 +37,7 @@
       <div class="card">
         <div class="card-hd">
           <span class="card-title">数据集关键指标对比</span>
-          <span class="card-hint">各数据集在节点/边/行程/会议四个维度的规模差异</span>
+          <span class="card-hint">各数据集在<TermExplanation term="节点">节点</TermExplanation>/<TermExplanation term="边">边</TermExplanation>/<TermExplanation term="行程">行程</TermExplanation>/会议四个维度的规模差异</span>
         </div>
         <DatasetCompareBar :data="store.overview" />
       </div>
@@ -43,7 +46,7 @@
     <!-- ── 第三行：话题行业分布 ── -->
     <div class="card">
       <div class="card-hd">
-        <span class="card-title">各数据集话题行业构成</span>
+        <span class="card-title">各数据集<TermExplanation term="议题">话题</TermExplanation>行业构成</span>
         <span class="card-hint">点击图例行业可过滤；渔业占比越高说明该数据集越关注渔业利益</span>
       </div>
       <TopicIndustryBar :data="store.topicDist" />
@@ -53,14 +56,14 @@
     <div class="row-2">
       <div class="card">
         <div class="card-hd">
-          <span class="card-title">FILAH 缺失节点分布</span>
+          <span class="card-title">FILAH 缺失<TermExplanation term="节点">节点</TermExplanation>分布</span>
           <span class="card-hint">{{ store.missingFilah.length }} 个节点在记者数据集有记录，FILAH 中缺失</span>
         </div>
         <MissingNodeChart :data="store.missingFilah" dataset="filah" />
       </div>
       <div class="card">
         <div class="card-hd">
-          <span class="card-title">TROUT 缺失节点分布</span>
+          <span class="card-title">TROUT 缺失<TermExplanation term="节点">节点</TermExplanation>分布</span>
           <span class="card-hint">{{ store.missingTrout.length }} 个节点在记者数据集有记录，TROUT 中缺失</span>
         </div>
         <MissingNodeChart :data="store.missingTrout" dataset="trout" />
@@ -81,6 +84,7 @@ import BiasCompareChart from '../components/charts/BiasCompareChart.vue'
 import DatasetCompareBar from '../components/charts/DatasetCompareBar.vue'
 import TopicIndustryBar from '../components/charts/TopicIndustryBar.vue'
 import MissingNodeChart from '../components/charts/MissingNodeChart.vue'
+import TermExplanation from '../components/shared/TermExplanation.vue'
 
 const store = useDataStore()
 

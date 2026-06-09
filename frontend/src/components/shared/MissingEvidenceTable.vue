@@ -8,7 +8,7 @@
         <thead>
           <tr>
             <th>#</th>
-            <th>节点 ID</th>
+            <th><TermExplanation term="节点">节点</TermExplanation> ID</th>
             <th>类型</th>
             <th>产业</th>
             <th>影响</th>
@@ -37,6 +37,7 @@
 import { computed } from 'vue'
 import type { MissingNode } from '../../types'
 import { INDUSTRY_COLORS, INDUSTRY_LABELS } from '../../types'
+import TermExplanation from './TermExplanation.vue'
 
 const props = defineProps<{
   missing: MissingNode[]
