@@ -3,15 +3,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, onUnmounted } from 'vue'
+import { ref, onMounted, watch, onUnmounted, withDefaults } from 'vue'
 import L from 'leaflet'
 import type { PlaceNode, TripRecord } from '../../types'
 import { DATASET_COLORS } from '../../types'
 
-const props = defineProps<{
-  places: PlaceNode[]
-  trips:  TripRecord[]
-}>()
+const props = withDefaults(defineProps<{
+  places?: PlaceNode[]
+  trips?:  TripRecord[]
+}>(), {
+  places: () => [],
+  trips: () => []
+})
 
 const mapEl = ref<HTMLElement>()
 let map: L.Map | null = null
@@ -49,8 +52,12 @@ function renderMarkers() {
   if (!markersLayer || !map) return
   markersLayer.clearLayers()
 
+  // 增加防御性检查
+  const places = props.places || []
+  const trips = props.trips || []
+
   // 过滤出有经纬度的地点
-  const validPlaces = props.places.filter(p => p.lat != null && p.lon != null)
+  const validPlaces = places.filter(p => p.lat != null && p.lon != null)
   if (!validPlaces.length) return
 
   const bounds: [number, number][] = []

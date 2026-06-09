@@ -37,6 +37,8 @@ export const useDataStore = defineStore('data', () => {
   const memberActivity   = ref<MemberActivityItem[]>([])
   const meetingCoverage  = ref<MeetingCoverageItem[]>([])
   const topicMeta        = ref<TopicMetaItem[]>([])
+  const meetingTopicDist = ref<Array<{ meeting_id: string, industry: string, count: number }>>([])
+  const fullGraph        = ref<{ nodes: any[], edges: any[] }>({ nodes: [], edges: [] })
   const placeNodes       = ref<PlaceNode[]>([])
   const tripRecords      = ref<TripRecord[]>([])
   const missingFilah     = ref<MissingNode[]>([])
@@ -49,7 +51,7 @@ export const useDataStore = defineStore('data', () => {
     error.value   = null
     try {
       const [
-        ov, bi, cov, td, sa, ntc, tzd, ma, mc, tm, pn, tr, mf, mt,
+        ov, bi, cov, td, sa, ntc, tzd, ma, mc, tm, mtd, graph, pn, tr, mf, mt,
       ] = await Promise.all([
         fetchJSON<OverviewItem[]>('overview.json'),
         fetchJSON<BiasIndexItem[]>('bias_index.json'),
@@ -61,6 +63,8 @@ export const useDataStore = defineStore('data', () => {
         fetchJSON<MemberActivityItem[]>('member_activity.json'),
         fetchJSON<MeetingCoverageItem[]>('meeting_coverage.json'),
         fetchJSON<TopicMetaItem[]>('topic_meta.json'),
+        fetchJSON<any[]>('meeting_topic_dist.json'),
+        fetchJSON<any>('full_graph.json'),
         fetchJSON<PlaceNode[]>('place_nodes.json'),
         fetchJSON<TripRecord[]>('trip_records.json'),
         fetchJSON<MissingNode[]>('missing_filah.json'),
@@ -76,6 +80,8 @@ export const useDataStore = defineStore('data', () => {
       memberActivity.value  = ma
       meetingCoverage.value = mc
       topicMeta.value       = tm
+      meetingTopicDist.value = mtd
+      fullGraph.value       = graph
       placeNodes.value      = pn
       tripRecords.value     = tr
       missingFilah.value    = mf
@@ -133,7 +139,7 @@ export const useDataStore = defineStore('data', () => {
     // 原始数据
     overview, biasIndex, coverage, topicDist, sentimentAgg,
     nodeTypeCounts, tripZoneDist, memberActivity, meetingCoverage,
-    topicMeta, placeNodes, tripRecords, missingFilah, missingTrout,
+    topicMeta, meetingTopicDist, fullGraph, placeNodes, tripRecords, missingFilah, missingTrout,
     // 方法
     loadAll,
     // 派生

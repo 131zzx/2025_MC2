@@ -1,6 +1,6 @@
 # COOTEFOO 可视化分析系统
 
-> VAST Challenge 2025 Mini-Challenge 2 · 数据可视化课程期末大作业
+> VAST Challenge 2025 Mini-Challenge 2
 
 ## 项目简介
 
