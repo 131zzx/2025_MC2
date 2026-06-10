@@ -297,17 +297,24 @@ def compute_member_activity(
             member_edges = edf[edf["target"] == member]
 
             # 识别活动类型
-            participant_cnt = (member_edges["role"] == "participant").sum()
-            trip_cnt = member_edges[member_edges["role"] == ""]["source"].apply(
-                lambda x: node_type_map.get(x, "") == "trip"
-            ).sum()
+            participant_cnt = int((member_edges["role"] == "participant").sum())
+            
+            # 统计行程数：role 为空且 source 节点类型为 trip
+            trip_edges = member_edges[member_edges["role"].isna() | (member_edges["role"] == "")]
+            if not trip_edges.empty:
+                trip_cnt = int(trip_edges["source"].apply(
+                    lambda x: node_type_map.get(x, "") == "trip"
+                ).sum())
+            else:
+                trip_cnt = 0
 
             # 参与的 meeting（通过 participant 边 → source 是 discussion/plan → 找 part_of → meeting）
             part_of_edges = edf[edf["role"] == "part_of"]
             disc_plan_ids = member_edges[member_edges["role"] == "participant"]["source"].tolist()
+            # 根据 compute_meeting_topic_distribution 的逻辑，通常是 DP --(part_of)--> Meeting
             meetings_via_participation = part_of_edges[
-                part_of_edges["target"].isin(disc_plan_ids)
-            ]["source"].unique().tolist()
+                part_of_edges["source"].isin(disc_plan_ids)
+            ]["target"].unique().tolist()
             meeting_cnt = len(meetings_via_participation)
 
             # 参与的 topic（通过 about/plan 边）
@@ -320,11 +327,11 @@ def compute_member_activity(
             records.append({
                 "member":          member,
                 "dataset":         ds,
-                "participant_cnt": int(participant_cnt),
-                "trip_cnt":        int(trip_cnt),
-                "meeting_cnt":     int(meeting_cnt),
-                "topic_cnt":       int(topic_cnt),
-                "total_activity":  int(participant_cnt) + int(trip_cnt),
+                "participant_cnt": participant_cnt,
+                "trip_cnt":        trip_cnt,
+                "meeting_cnt":     meeting_cnt,
+                "topic_cnt":       topic_cnt,
+                "total_activity":  participant_cnt + trip_cnt,
                 "in_dataset":      member in nodes_by_ds[ds].get("id", pd.Series()).values
                                    if "id" in nodes_by_ds[ds].columns else False,
             })
