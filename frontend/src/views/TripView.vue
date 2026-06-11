@@ -14,7 +14,7 @@
         <!-- 行程点图例：动态切换 -->
         <div class="tl-legend">
           <div class="leg-title">行程点状态：</div>
-          <template v-if="isJournalistActive">
+          <template v-if="isJournalistEvidenceMode">
             <div class="leg-item"><span class="leg-dot" style="background: #064e3b" />多方证实</div>
             <div class="leg-item"><span class="leg-dot" style="background: #10b981" />单方验证</div>
             <div class="leg-item"><span class="leg-dot" style="background: #a7f3d0" />仅记者有</div>
@@ -27,7 +27,7 @@
         </div>
 
         <div class="tl-controls">
-          <span class="trip-count">{{ filteredTrips.length }} 条<TermExplanation term="行程">行程</TermExplanation></span>
+          <span class="trip-count">{{ timelineTrips.length }} 条<TermExplanation term="行程">行程</TermExplanation></span>
           <div class="ds-btns">
             <button
               v-for="ds in DS_LIST" :key="ds.key"
@@ -44,6 +44,7 @@
       </div>
       <TripTimeline
         :trips="timelineTrips"
+        :active-datasets="[...activeDsSet]"
         :selected-member="selectedMember || undefined"
         @member-click="selectedMember = selectedMember === $event ? '' : $event"
       />
@@ -131,31 +132,47 @@ const filteredTrips = computed<TripRecord[]>(() => {
   return trips
 })
 
-// 检查当前显示的行程是否包含记者
-const isJournalistActive = computed(() => 
-  activeDsSet.has('journalist')
-)
+// 记者证据模式：勾选「记者」页签时启用（与 FILAH/TROUT 可同时选，按记者图例着色）
+const isJournalistEvidenceMode = computed(() => activeDsSet.has('journalist'))
 
-// 为时间轴准备的去重且带证据状态的行程
-const timelineTrips = computed(() => {
-  const allTrips = store.tripRecords
-  // 1. 预计算每个 trip_id 存在于哪些数据集
-  const presenceMap = new Map<string, Set<DatasetKey>>()
-  allTrips.forEach(t => {
-    if (!presenceMap.has(t.trip_id)) presenceMap.set(t.trip_id, new Set())
-    presenceMap.get(t.trip_id)!.add(t.dataset)
+// FILAH/TROUT 交叉存在（全库统计，用于红色「双方共有」——与当前页签无关）
+const filahTroutPresence = computed(() => {
+  const map = new Map<string, Set<'filah' | 'trout'>>()
+  store.tripRecords.forEach(t => {
+    if (t.dataset !== 'filah' && t.dataset !== 'trout') return
+    if (!map.has(t.trip_id)) map.set(t.trip_id, new Set())
+    map.get(t.trip_id)!.add(t.dataset)
   })
+  return map
+})
 
-  // 2. 筛选出当前需要显示的行程（去重，每个 ID 只留一个用于定位）
-  const uniqueMap = new Map<string, TripRecord & { presence: Set<DatasetKey>; isJournalistActive: boolean }>()
-  const journalistActive = isJournalistActive.value
+// 记者证据模式：三库全量存在情况
+const fullPresence = computed(() => {
+  const map = new Map<string, Set<DatasetKey>>()
+  store.tripRecords.forEach(t => {
+    if (!map.has(t.trip_id)) map.set(t.trip_id, new Set())
+    map.get(t.trip_id)!.add(t.dataset)
+  })
+  return map
+})
+
+// 时间轴：严格只显示当前已选页签的行程，按 trip_id 去重
+const timelineTrips = computed(() => {
+  const uniqueMap = new Map<string, TripRecord & {
+    presence: Set<DatasetKey>
+    journalistEvidenceMode: boolean
+  }>()
+  const evidenceMode = isJournalistEvidenceMode.value
 
   filteredTrips.value.forEach(t => {
     if (!uniqueMap.has(t.trip_id)) {
+      const presence = evidenceMode
+        ? (fullPresence.value.get(t.trip_id) ?? new Set([t.dataset]))
+        : new Set<DatasetKey>(filahTroutPresence.value.get(t.trip_id) ?? [t.dataset])
       uniqueMap.set(t.trip_id, {
         ...t,
-        presence: presenceMap.get(t.trip_id)!,
-        isJournalistActive: journalistActive
+        presence,
+        journalistEvidenceMode: evidenceMode,
       })
     }
   })

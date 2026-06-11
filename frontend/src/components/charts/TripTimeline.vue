@@ -25,7 +25,8 @@ import type { TripRecord, DatasetKey } from '../../types'
 import { DATASET_COLORS, COMMITTEE_MEMBERS } from '../../types'
 
 const props = defineProps<{
-  trips: (TripRecord & { presence?: Set<DatasetKey>; isJournalistActive?: boolean })[]
+  trips: (TripRecord & { presence?: Set<DatasetKey>; journalistEvidenceMode?: boolean })[]
+  activeDatasets?: DatasetKey[]
   selectedMember?: string
   hoveredTrip?: string
 }>()
@@ -47,16 +48,48 @@ function parseTripDate(raw: string): Date | null {
   const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
   if (!m) return null
   let year = parseInt(m[1], 10)
-  if (year < 1900) year += 2000
+  if (year < 100) year += 2000
+  else if (year < 1900) year += 2000
   const d = new Date(year, parseInt(m[2], 10) - 1, parseInt(m[3], 10))
   return isNaN(d.getTime()) ? null : d
 }
 
+function dotColor(presence: Set<DatasetKey>, journalistEvidenceMode: boolean): string {
+  if (journalistEvidenceMode) {
+    const hasFilah = presence.has('filah')
+    const hasTrout = presence.has('trout')
+    const hasJournalist = presence.has('journalist')
+    if (hasFilah && hasTrout) return '#064e3b'
+    if (hasFilah || hasTrout) return '#10b981'
+    if (hasJournalist) return '#a7f3d0'
+    return '#94a3b8'
+  }
+  // FILAH / TROUT 模式：红色仅当全库中双方共有；不掺入记者
+  const hasFilah = presence.has('filah')
+  const hasTrout = presence.has('trout')
+  if (hasFilah && hasTrout) return '#ef4444'
+  if (hasFilah) return DATASET_COLORS.filah
+  if (hasTrout) return DATASET_COLORS.trout
+  return '#94a3b8'
+}
+
 function draw() {
-  if (!el.value || !svgEl.value || !props.trips.length) return
+  if (!el.value || !svgEl.value) return
 
   const svg = d3.select(svgEl.value)
   svg.selectAll('*').remove()
+  tooltip.value.show = false
+
+  if (!props.trips.length) {
+    const W = el.value.clientWidth || 700
+    svg.attr('width', W).attr('height', 72)
+    svg.append('text')
+      .attr('x', W / 2).attr('y', 40)
+      .attr('text-anchor', 'middle')
+      .attr('fill', '#94a3b8').attr('font-size', 12)
+      .text('当前筛选无行程记录')
+    return
+  }
 
   const containerW = el.value.clientWidth || 700
   const margin = { top: 30, right: 20, bottom: 30, left: 130 }
@@ -76,8 +109,9 @@ function draw() {
   const minDate = d3.min(dates)!
   const maxDate = d3.max(dates)!
 
+  const padMs = 7 * 24 * 3600 * 1000
   const xScale = d3.scaleTime()
-    .domain([minDate, maxDate])
+    .domain([new Date(minDate.getTime() - padMs), new Date(maxDate.getTime() + padMs)])
     .range([0, innerW])
 
   const yScale = d3.scaleBand()
@@ -125,39 +159,36 @@ function draw() {
       .on('click', () => emit('member-click', m))
   })
 
-  // 行程点
-  props.trips.forEach(trip => {
-    const mIdx = members.indexOf(trip.person as any)
-    if (mIdx < 0) return
-    const date = parseTripDate(trip.date)
-    if (!date) return
+  // 同日同成员多点横向错开，避免完全重叠
+  const slotMap = new Map<string, number>()
+  const placed = props.trips
+    .map(trip => {
+      const mIdx = members.indexOf(trip.person as any)
+      const date = parseTripDate(trip.date)
+      if (mIdx < 0 || !date) return null
+      const dayKey = `${trip.person}|${date.toISOString().slice(0, 10)}`
+      const slot = slotMap.get(dayKey) ?? 0
+      slotMap.set(dayKey, slot + 1)
+      return { trip, mIdx, date, slot }
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null)
 
-    const x = xScale(date)
+  const maxSlot = d3.max(placed, d => d.slot) ?? 0
+  const jitterStep = maxSlot > 0 ? Math.min(10, innerW / 80) : 0
+
+  placed.forEach(({ trip, mIdx, date, slot }) => {
+    const presence = trip.presence ?? new Set([trip.dataset])
+    const color = dotColor(presence, !!trip.journalistEvidenceMode)
+    const x = xScale(date) + slot * jitterStep - (maxSlot * jitterStep) / 2
     const y = mIdx * rowH + rowH / 2
-    
-    // 决定填充颜色：遵循证据一致性逻辑
-    let color = DATASET_COLORS[trip.dataset as keyof typeof DATASET_COLORS] || '#94a3b8'
-    const presence = trip.presence || new Set([trip.dataset])
-    const hasJournalist = presence.has('journalist')
-    const hasFilah = presence.has('filah')
-    const hasTrout = presence.has('trout')
-    const journalistActive = trip.isJournalistActive
 
-    if (hasJournalist && journalistActive) {
-      if (hasFilah && hasTrout) color = '#064e3b' // 多方证实
-      else if (hasFilah || hasTrout) color = '#10b981' // 单方验证
-      else color = '#a7f3d0' // 仅记者有
-    } else {
-      if (hasFilah && hasTrout) color = '#ef4444' // 双方共有
-      else if (hasFilah) color = DATASET_COLORS.filah
-      else if (hasTrout) color = DATASET_COLORS.trout
-      else color = DATASET_COLORS.journalist // 纯记者点
-    }
-    
-    const isHighlighted = props.selectedMember
-      ? trip.person === props.selectedMember
-      : true
+    const isHighlighted = props.selectedMember ? trip.person === props.selectedMember : true
     const isHovered = props.hoveredTrip === trip.trip_id
+
+    const dsLabel = trip.journalistEvidenceMode
+      ? [...presence].map(ds => (ds === 'journalist' ? '记者' : ds.toUpperCase())).join('、')
+      : (presence.has('filah') && presence.has('trout') ? 'FILAH + TROUT'
+        : presence.has('filah') ? 'FILAH' : presence.has('trout') ? 'TROUT' : trip.dataset)
 
     g.append('circle')
       .attr('cx', x).attr('cy', y)
@@ -169,7 +200,7 @@ function draw() {
       .attr('cursor', 'pointer')
       .on('mouseenter', (event) => {
         emit('trip-hover', trip.trip_id)
-        const placeNames = (trip.places || []).map(p => p.name).join(' → ')
+        const placeNames = (trip.places || []).map(p => p.name).filter(Boolean).join(' → ')
         tooltip.value = {
           show: true,
           x: event.clientX + 12,
@@ -177,7 +208,7 @@ function draw() {
           person: trip.person,
           date: trip.date,
           places: placeNames,
-          dataset: trip.dataset,
+          dataset: dsLabel,
         }
       })
       .on('mousemove', event => {
@@ -221,7 +252,7 @@ function scheduleDraw() {
   }, 80)
 }
 
-watch([() => props.trips, () => props.selectedMember, () => props.hoveredTrip], scheduleDraw)
+watch([() => props.trips, () => props.activeDatasets, () => props.selectedMember, () => props.hoveredTrip], scheduleDraw)
 </script>
 
 <style scoped>
