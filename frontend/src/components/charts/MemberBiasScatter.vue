@@ -2,8 +2,7 @@
   委员偏见定位散点图
   X 轴 = 渔业议题情感均值（正=支持渔业）
   Y 轴 = 旅游议题情感均值（正=支持旅游）
-  每个点 = 某委员在某数据集中的立场
-  同一委员的三个数据集点之间用虚线连接，展示跨数据集一致性
+  每个点 = 某委员在某数据集中的立场（多库情感相同时自然重叠）
   四象限含义：
     右上: 同时支持渔业+旅游（中立/两面讨好）
     右下: 支持渔业、反对旅游（亲渔业）
@@ -21,12 +20,6 @@
           <circle cx="7" cy="7" :r="4" :fill="ds.color" />
         </svg>
         {{ ds.label }}
-      </div>
-      <div class="leg-item leg-line">
-        <svg width="24" height="14">
-          <line x1="2" y1="7" x2="22" y2="7" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4,3" />
-        </svg>
-        同一委员跨数据集连线
       </div>
     </div>
   </div>
@@ -132,25 +125,6 @@ function draw() {
     .attr('stroke', '#e2e8f0').attr('stroke-width', 1.5)
   g.append('line').attr('x1', 0).attr('x2', iw).attr('y1', cy).attr('y2', cy)
     .attr('stroke', '#e2e8f0').attr('stroke-width', 1.5)
-
-  // ── 连接线（同一委员跨数据集） ────────────────────────
-  const memberGroups = d3.group(points, d => d.member)
-  memberGroups.forEach((pts_m) => {
-    if (pts_m.length < 2) return
-    const member = pts_m[0].member
-    const isSel = props.selectedMember === member
-    const hasSel = !!props.selectedMember
-
-    for (let i = 0; i < pts_m.length - 1; i++) {
-      const a = pts_m[i], b = pts_m[i + 1]
-      g.append('line')
-        .attr('x1', xScale(a.fishingV)).attr('y1', yScale(a.tourismV))
-        .attr('x2', xScale(b.fishingV)).attr('y2', yScale(b.tourismV))
-        .attr('stroke', '#94a3b8').attr('stroke-width', hasSel ? (isSel ? 1.5 : 0.4) : 1)
-        .attr('stroke-dasharray', '4,3')
-        .attr('opacity', hasSel ? (isSel ? 0.8 : 0.15) : 0.5)
-    }
-  })
 
   // ── 散点 ─────────────────────────────────────────────
   const rScale = d3.scaleSqrt().domain([0, d3.max(points, d => d.totalCount) || 1]).range([5, 14])
@@ -263,5 +237,4 @@ watch([() => props.data, () => props.selectedMember], draw, { deep: true })
   padding: 6px 0 2px; margin-top: 2px;
 }
 .leg-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #475569; }
-.leg-line  { color: #94a3b8; }
 </style>

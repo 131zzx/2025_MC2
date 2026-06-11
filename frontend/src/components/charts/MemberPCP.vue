@@ -45,7 +45,7 @@ function draw() {
 
   const W = el.value.clientWidth || 480
   const H = 260
-  const m = { top: 28, right: 24, bottom: 16, left: 100 }
+  const m = { top: 28, right: 24, bottom: 16, left: 132 }
   const iw = W - m.left - m.right
   const ih = H - m.top - m.bottom
 
@@ -137,7 +137,9 @@ function draw() {
     const ax = d3.axisLeft(yScales[a.key]).ticks(3).tickSize(3)
     const axG = g.append('g').attr('transform', `translate(${x},0)`).call(ax)
     axG.select('.domain').attr('stroke', '#e2e8f0')
-    axG.selectAll('text').attr('font-size', 9).attr('fill', '#94a3b8').attr('dx', -2)
+    // 首轴刻度右移，为左侧成员名留出空间
+    const tickDx = a.key === AXES[0].key ? 6 : -2
+    axG.selectAll('text').attr('font-size', 9).attr('fill', '#94a3b8').attr('dx', tickDx)
     axG.selectAll('.tick line').attr('stroke', '#e2e8f0')
 
     g.append('text').attr('x', x).attr('y', -12)
@@ -169,9 +171,9 @@ function draw() {
     const labelY = step * idx + step / 2   // 等距
     const isSel  = props.selectedMember === member
 
-    // 标签（等距排列，无虚线）
+    // 标签（等距排列，置于首轴左侧，避免与刻度重叠）
     g.append('text')
-      .attr('x', x0 - 8).attr('y', labelY)
+      .attr('x', -36).attr('y', labelY)
       .attr('text-anchor', 'end').attr('dominant-baseline', 'middle')
       .attr('font-size', 11).attr('font-weight', isSel ? 800 : 500)
       .attr('fill', isSel ? '#2563eb' : '#374151')
