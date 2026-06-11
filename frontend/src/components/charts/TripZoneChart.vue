@@ -59,9 +59,13 @@ function draw() {
 
   const stack = d3.stack<StackRow>().keys(zones)
   const series = stack(stackData)
-  const x = d3.scaleBand().domain(datasets).range([0, iw]).padding(0.35)
+  const singleDs = datasets.length === 1
+  const x = d3.scaleBand()
+    .domain(datasets)
+    .range([0, iw])
+    .padding(singleDs ? 0.55 : 0.35)
   const yMax = d3.max(series, s => d3.max(s, d => d[1])) ?? 10
-  const y = d3.scaleLinear().domain([0, yMax]).nice().range([ih, 0])
+  const y = d3.scaleLinear().domain([0, Math.max(yMax, 1)]).nice().range([ih, 0])
 
   series.forEach(s => {
     g.selectAll<SVGRectElement, d3.SeriesPoint<StackRow>>(`rect.zone-${s.key}`)
@@ -100,10 +104,15 @@ function draw() {
     .attr('fill', '#94a3b8').attr('font-size', 9)
 
   const leg = svg.append('g').attr('transform', `translate(${margin.left}, 4)`)
-  zones.slice(0, 4).forEach((z, i) => {
-    leg.append('rect').attr('x', i * 52).attr('width', 8).attr('height', 8)
+  const legW = 52
+  zones.forEach((z, i) => {
+    const col = i % 4
+    const row = Math.floor(i / 4)
+    const ox = col * legW
+    const oy = row * 14
+    leg.append('rect').attr('x', ox).attr('y', oy).attr('width', 8).attr('height', 8)
       .attr('fill', ZONE_COLORS[z] ?? '#888').attr('rx', 1)
-    leg.append('text').attr('x', i * 52 + 11).attr('y', 8)
+    leg.append('text').attr('x', ox + 11).attr('y', oy + 8)
       .attr('fill', '#94a3b8').attr('font-size', 9)
       .text(ZONE_LABELS[z] ?? z)
   })

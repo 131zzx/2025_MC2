@@ -3,7 +3,10 @@
 
     <!-- 地图 -->
     <div class="map-section">
-      <OceanusMap />
+      <OceanusMap
+        :trips="filteredTrips"
+        :selected-member="selectedMember"
+      />
     </div>
 
     <!-- 时间轴（全宽） -->
@@ -53,8 +56,17 @@
     <!-- 统计图：时间轴下方并排 -->
     <div class="stats-row">
       <div class="card stats-card">
-        <div class="card-hd">
+        <div class="card-hd zone-card-hd">
           <span class="card-title"><TermExplanation term="行程">行程</TermExplanation>区域分布</span>
+          <div class="ds-btns">
+            <button
+              v-for="ds in DS_LIST" :key="'zone-' + ds.key"
+              class="ds-chip"
+              :class="{ 'ds-chip--on': zoneChartDsSet.has(ds.key) }"
+              :style="zoneChartDsSet.has(ds.key) ? { background: ds.color + '18', borderColor: ds.color, color: ds.color } : {}"
+              @click="toggleZoneDs(ds.key)"
+            >{{ ds.label }}</button>
+          </div>
         </div>
         <TripZoneChart :data="filteredZone" />
       </div>
@@ -118,10 +130,20 @@ const DS_LIST = [
 
 const activeDsSet    = reactive(new Set<Ds>(['filah', 'trout', 'journalist']))
 const selectedMember = ref('')
+/** 区域分布图单独筛选：可多选对比，至少保留一个 */
+const zoneChartDsSet = reactive(new Set<Ds>(['filah', 'trout']))
 
 function toggleDs(ds: Ds) {
   if (activeDsSet.has(ds)) { if (activeDsSet.size > 1) activeDsSet.delete(ds) }
   else activeDsSet.add(ds)
+}
+
+function toggleZoneDs(ds: Ds) {
+  if (zoneChartDsSet.has(ds)) {
+    if (zoneChartDsSet.size > 1) zoneChartDsSet.delete(ds)
+  } else {
+    zoneChartDsSet.add(ds)
+  }
 }
 
 function isActiveDs(ds: string): boolean { return activeDsSet.has(ds as Ds) }
@@ -180,7 +202,7 @@ const timelineTrips = computed(() => {
 })
 
 const filteredZone = computed(() =>
-  store.tripZoneDist.filter(d => isActiveDs(d.dataset))
+  store.tripZoneDist.filter(d => zoneChartDsSet.has(d.dataset))
 )
 
 const memberStats = computed(() =>
@@ -219,6 +241,7 @@ function shortName(n: string) {
 .card-hd {
   display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;
 }
+.zone-card-hd .ds-btns { margin-left: auto; }
 .card-title { font-size: 13px; font-weight: 700; color: #1e293b; }
 
 .tl-legend {
