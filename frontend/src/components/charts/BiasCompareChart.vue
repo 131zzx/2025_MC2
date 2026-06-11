@@ -1,17 +1,23 @@
 <!--
   偏见指数对比图
   三个数据集在同一轴上显示：水平发散条形图
-  正值 → 渔业偏向（右侧，橙色），负值 → 旅游偏向（左侧，蓝色）
+  bias_index = (旅游 − 渔业) / (旅游 + 渔业)
+  正值 → 旅游偏向（右侧），负值 → 渔业偏向（左侧）
 -->
 <template>
   <div ref="el" class="bias-chart" />
 </template>
 
+<script lang="ts">
+import { defineComponent } from 'vue'
+export default defineComponent({ name: 'BiasCompareChart' })
+</script>
+
 <script setup lang="ts">
 import { ref, onMounted, watch, onUnmounted } from 'vue'
 import * as d3 from 'd3'
 import type { BiasIndexItem } from '../../types'
-import { DATASET_COLORS, DATASET_LABELS } from '../../types'
+import { DATASET_COLORS, INDUSTRY_COLORS } from '../../types'
 
 const props = defineProps<{
   data: BiasIndexItem[]
@@ -52,7 +58,7 @@ function draw() {
     .attr('x1', '0%').attr('x2', '100%')
   grad.append('stop').attr('offset', '0%').attr('stop-color', '#eff6ff').attr('stop-opacity', 0.8)
   grad.append('stop').attr('offset', '50%').attr('stop-color', '#f8fafc').attr('stop-opacity', 0.4)
-  grad.append('stop').attr('offset', '100%').attr('stop-color', '#fffbeb').attr('stop-opacity', 0.8)
+  grad.append('stop').attr('offset', '100%').attr('stop-color', '#ecfdf5').attr('stop-opacity', 0.8)
 
   g.append('rect').attr('width', iw).attr('height', ih).attr('fill', 'url(#bias-bg)').attr('rx', 4)
 
@@ -75,7 +81,7 @@ function draw() {
     const barX  = value >= 0 ? cx : xScale(value)
     const barW  = Math.abs(xScale(value) - cx)
     const color = DATASET_COLORS[ds as keyof typeof DATASET_COLORS] || '#94a3b8'
-    const posColor = value >= 0 ? '#f59e0b' : '#3b82f6'
+    const posColor = value >= 0 ? INDUSTRY_COLORS.tourism : INDUSTRY_COLORS.fishing
 
     // 条形本体
     g.append('rect')
@@ -114,11 +120,11 @@ function draw() {
 
   // 两侧标注
   svg.append('text').attr('x', m.left - 4).attr('y', H - 6)
-    .attr('text-anchor', 'end').attr('font-size', 10).attr('fill', '#3b82f6').attr('font-weight', 600)
-    .text('← 旅游偏向')
+    .attr('text-anchor', 'end').attr('font-size', 10).attr('fill', INDUSTRY_COLORS.fishing).attr('font-weight', 600)
+    .text('← 渔业偏向')
   svg.append('text').attr('x', m.left + iw + 4).attr('y', H - 6)
-    .attr('text-anchor', 'start').attr('font-size', 10).attr('fill', '#f59e0b').attr('font-weight', 600)
-    .text('渔业偏向 →')
+    .attr('text-anchor', 'start').attr('font-size', 10).attr('fill', INDUSTRY_COLORS.tourism).attr('font-weight', 600)
+    .text('旅游偏向 →')
 }
 
 const ro = new ResizeObserver(draw)

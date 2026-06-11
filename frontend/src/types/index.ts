@@ -48,7 +48,7 @@ export interface OverviewItem {
 export interface BiasIndexItem {
   dataset:     DatasetKey
   member:      string        // 'ALL' 表示整体
-  bias_index:  number        // [-1, +1]
+  bias_index:  number        // [-1, +1]：+1 偏旅游，−1 偏渔业
 }
 
 export interface CoverageItem {

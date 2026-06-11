@@ -21,6 +21,11 @@
   </div>
 </template>
 
+<script lang="ts">
+import { defineComponent } from 'vue'
+export default defineComponent({ name: 'TopicIndustryBar' })
+</script>
+
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import * as d3 from 'd3'

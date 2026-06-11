@@ -3,7 +3,7 @@
 
     <!-- 地图 -->
     <div class="map-section">
-      <OceanusMap :trips="filteredTrips" :places="store.placeNodes" />
+      <OceanusMap />
     </div>
 
     <!-- 时间轴（全宽） -->

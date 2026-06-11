@@ -29,7 +29,7 @@
       <div class="card">
         <div class="card-hd">
           <span class="card-title"><TermExplanation term="采样偏见">采样偏见</TermExplanation>指数对比</span>
-          <span class="card-hint">正值偏渔业，负值偏旅游；越偏离中心线越不可靠</span>
+          <span class="card-hint">正值偏旅游，负值偏渔业；越偏离中心线偏见越明显</span>
         </div>
         <BiasCompareChart :data="store.biasIndex" />
       </div>
@@ -75,9 +75,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import { useDataStore } from '../stores/dataStore'
-import { DATASET_COLORS, DATASET_LABELS } from '../types'
+import { DATASET_COLORS, INDUSTRY_COLORS } from '../types'
 import type { DatasetKey } from '../types'
 
 import BiasCompareChart from '../components/charts/BiasCompareChart.vue'
@@ -114,8 +113,8 @@ function formatBias(ds: DatasetKey): string {
 }
 function getBiasColor(ds: DatasetKey): string {
   const v = getBiasValue(ds)
-  if (v > 0.15) return '#d97706'
-  if (v < -0.15) return '#2563eb'
+  if (v > 0.15) return INDUSTRY_COLORS.tourism
+  if (v < -0.15) return INDUSTRY_COLORS.fishing
   return '#64748b'
 }
 </script>

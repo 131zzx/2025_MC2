@@ -6,6 +6,11 @@
   <div ref="el" class="compare-chart" />
 </template>
 
+<script lang="ts">
+import { defineComponent } from 'vue'
+export default defineComponent({ name: 'DatasetCompareBar' })
+</script>
+
 <script setup lang="ts">
 import { ref, onMounted, watch, onUnmounted } from 'vue'
 import * as d3 from 'd3'

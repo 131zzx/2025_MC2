@@ -21,6 +21,11 @@
   </span>
 </template>
 
+<script lang="ts">
+import { defineComponent } from 'vue'
+export default defineComponent({ name: 'TermExplanation' })
+</script>
+
 <script setup lang="ts">
 import { computed, ref, reactive } from 'vue'
 
@@ -33,13 +38,14 @@ const isVisible = ref(false)
 const tooltipStyle = reactive({
   top: '0px',
   left: '0px',
+  transform: 'translate(-50%, -100%)',
 })
 
 const EXPLANATIONS: Record<string, string> = {
   '节点': '知识图谱中的核心实体，如人员、会议、议题或行程记录。',
   '边': '连接两个节点的线，表示它们之间的某种关系（如“参与会议”、“属于某产业”）。',
-  '偏差指数': '量化委员会在不同产业（渔业 vs 旅游业）之间的时间与精力投入倾斜程度。',
-  '偏见指数': '量化委员会在不同产业（渔业 vs 旅游业）之间的时间与精力投入倾斜程度。',
+  '偏差指数': '量化委员会在渔业与旅游议题上的参与倾斜。(旅游−渔业)/(旅游+渔业)，范围 [−1,1]；正值偏旅游，负值偏渔业。',
+  '偏见指数': '量化委员会在渔业与旅游议题上的参与倾斜。(旅游−渔业)/(旅游+渔业)，范围 [−1,1]；正值偏旅游，负值偏渔业。',
   '覆盖率': '衡量一个数据集相对于“全量数据”的完整程度。',
   '知识图谱': '一种将现实世界中的实体及其复杂关系通过“点”和“线”结构进行组织的数据存储方式。',
   '采样偏见': '由于数据采集不平衡导致的结论性偏差。',
