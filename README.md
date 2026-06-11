@@ -1,5 +1,5 @@
 # COOTEFOO 可视化分析系统
-> VAST Challenge 2025 Mini-Challenge 2
+VAST Challenge 2025 Mini-Challenge 2
 
 ## 项目简介
 本项目为记者 Edwina Darling Moray 构建可交互的视觉分析系统，通过对比 FILAH（渔业方）、TROUT（旅游方）和全量新闻记者数据集（journalist），揭示各方数据集的采样偏见及委员会成员的真实行为。

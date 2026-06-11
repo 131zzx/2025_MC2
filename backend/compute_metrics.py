@@ -308,13 +308,18 @@ def compute_member_activity(
             else:
                 trip_cnt = 0
 
-            # 参与的 meeting（通过 participant 边 → source 是 discussion/plan → 找 part_of → meeting）
+            # 参与的 meeting：Member ← participant ← DP ←(part_of)← Meeting
+            # 图谱中 part_of 方向为 Meeting(source) → DP(target)，与 meeting_topic_distribution 一致
             part_of_edges = edf[edf["role"] == "part_of"]
             disc_plan_ids = member_edges[member_edges["role"] == "participant"]["source"].tolist()
-            # 根据 compute_meeting_topic_distribution 的逻辑，通常是 DP --(part_of)--> Meeting
             meetings_via_participation = part_of_edges[
-                part_of_edges["source"].isin(disc_plan_ids)
-            ]["target"].unique().tolist()
+                part_of_edges["target"].isin(disc_plan_ids)
+            ]["source"].unique().tolist()
+            if not meetings_via_participation:
+                # 兼容反向标注：DP(source) → Meeting(target)
+                meetings_via_participation = part_of_edges[
+                    part_of_edges["source"].isin(disc_plan_ids)
+                ]["target"].unique().tolist()
             meeting_cnt = len(meetings_via_participation)
 
             # 参与的 topic（通过 about/plan 边）
